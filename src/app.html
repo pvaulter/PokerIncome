@@ -1,0 +1,900 @@
+<title>Poker Ledger</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Figtree:wght@400;500;600&family=JetBrains+Mono:wght@500&display=swap">
+<style>
+/* Layout: one-column phone app, bottom tab bar; widens to a centered 960px column on desktop. */
+:root {
+  --bg: #f4f6f4;
+  --surface: #ffffff;
+  --sunken: #eaeeeb;
+  --ink: #141a17;
+  --muted: #5b6761;
+  --line: #d9dfdb;
+  --accent: #1d5c45;
+  --accent-ink: #ffffff;
+  --win: #12804a;
+  --loss: #c4372d;
+  --grid: #e6eae7;
+  --font-display: "Bricolage Grotesque", "Avenir Next", system-ui, sans-serif;
+  --font-body: "Figtree", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-num: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  --r: 10px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0e1311; --surface: #161d1a; --sunken: #1d2622; --ink: #e8eeea; --muted: #9aa8a1;
+    --line: #2a3530; --accent: #4fb88a; --accent-ink: #08130e; --win: #43c27c; --loss: #ef6b60; --grid: #232c28;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0e1311; --surface: #161d1a; --sunken: #1d2622; --ink: #e8eeea; --muted: #9aa8a1;
+  --line: #2a3530; --accent: #4fb88a; --accent-ink: #08130e; --win: #43c27c; --loss: #ef6b60; --grid: #232c28;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { min-height: 100%; }
+body { background: var(--bg); color: var(--ink); font: 15px/1.45 var(--font-body); -webkit-font-smoothing: antialiased; }
+h1, h2, h3 { font-family: var(--font-display); font-weight: 700; margin: 0; text-wrap: balance; letter-spacing: -0.01em; }
+h1 { font-size: 1.6rem; } h2 { font-size: 1.15rem; } h3 { font-size: 1rem; }
+button, input, select, textarea { font: inherit; color: inherit; }
+.input.num::placeholder { font-family: var(--font-body); }
+.num { font-family: var(--font-num); font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
+.win { color: var(--win); } .loss { color: var(--loss); }
+.muted { color: var(--muted); }
+.label { font-size: .72rem; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); font-weight: 600; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.wrap { max-width: 960px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 20px 110px; }
+
+/* Buttons & fields */
+.btn { appearance: none; border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: 10px 18px; font-weight: 600; cursor: pointer; }
+.btn:hover { border-color: var(--muted); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.btn.danger { color: var(--loss); }
+.btn.danger.solid { background: var(--loss); border-color: var(--loss); color: #fff; }
+.btn.block { width: 100%; }
+.btn.small { padding: 6px 12px; font-size: .85rem; }
+.field { display: grid; gap: 6px; min-width: 0; }
+.field > span { font-size: .8rem; font-weight: 600; color: var(--muted); }
+.input { width: 100%; border: 1px solid var(--line); background: var(--surface); border-radius: 8px; padding: 11px 12px; min-width: 0; }
+.input:focus { border-color: var(--accent); outline: none; box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 25%, transparent); }
+textarea.input { min-height: 70px; resize: vertical; }
+.hint { font-size: .8rem; color: var(--muted); }
+.error { color: var(--loss); font-size: .88rem; font-weight: 500; }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.seg { display: inline-flex; background: var(--sunken); border-radius: 999px; padding: 3px; gap: 2px; }
+.seg button { border: 0; background: transparent; padding: 7px 14px; border-radius: 999px; cursor: pointer; font-weight: 600; font-size: .88rem; color: var(--muted); }
+.seg button[aria-pressed="true"] { background: var(--surface); color: var(--ink); box-shadow: 0 1px 2px rgb(0 0 0 / .12); }
+
+/* Sign-in */
+.auth { min-height: 100vh; display: grid; place-items: center; padding-block: 24px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+.auth-card { width: 100%; max-width: 400px; display: grid; gap: 18px; }
+.brand { display: flex; align-items: center; gap: 10px; }
+.brand svg { flex: none; }
+.brand b { font-family: var(--font-display); font-size: 1.35rem; }
+.auth-card form { display: grid; gap: 14px; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 20px; }
+.check { display: flex; gap: 8px; align-items: center; font-size: .9rem; }
+.privacy { font-size: .85rem; color: var(--muted); display: grid; gap: 6px; }
+
+/* App chrome */
+.top { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 18px; flex-wrap: wrap; }
+.top .who { font-size: .85rem; color: var(--muted); }
+.tabs { position: fixed; left: 0; right: 0; bottom: 0; z-index: 10; background: color-mix(in srgb, var(--surface) 92%, transparent); backdrop-filter: blur(10px); border-top: 1px solid var(--line);
+  padding-bottom: env(safe-area-inset-bottom, 0px); padding-left: max(8px, env(safe-area-inset-left, 0px)); padding-right: max(8px, env(safe-area-inset-right, 0px)); }
+.tabs nav { max-width: 560px; margin: 0 auto; display: grid; grid-template-columns: repeat(4, 1fr); }
+.tabs button { border: 0; background: none; padding: 10px 4px 12px; display: grid; justify-items: center; gap: 3px; font-size: .74rem; font-weight: 600; color: var(--muted); cursor: pointer; }
+.tabs button svg { width: 22px; height: 22px; }
+.tabs button[aria-current="page"] { color: var(--accent); }
+.tabs .log-btn span.pill { background: var(--accent); color: var(--accent-ink); border-radius: 999px; padding: 4px 16px; display: grid; place-items: center; }
+.tabs .log-btn[aria-current="page"] span.pill { box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 30%, transparent); }
+
+/* Dashboard */
+.filters { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-bottom: 16px; }
+.filters select { width: auto; padding: 8px 12px; border-radius: 999px; }
+.hero { display: grid; gap: 4px; margin-bottom: 16px; }
+.hero .big { font-family: var(--font-display); font-weight: 700; font-size: clamp(2.4rem, 9vw, 3.4rem); line-height: 1; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; }
+.stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: var(--r); overflow: hidden; margin-bottom: 22px; }
+.stat { background: var(--surface); padding: 12px 14px; display: grid; gap: 2px; min-width: 0; }
+.stat .v { font-family: var(--font-num); font-size: 1.1rem; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.charts { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 16px; min-width: 0; display: grid; gap: 10px; align-content: start; }
+.panel.wide { grid-column: 1 / -1; }
+.panel header { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.chart { position: relative; width: 100%; }
+.chart svg { display: block; width: 100%; height: auto; overflow: visible; }
+.chart text { fill: var(--muted); font-family: var(--font-body); font-size: 11px; }
+.chart .gridline { stroke: var(--grid); stroke-width: 1; }
+.chart .zero { stroke: var(--muted); stroke-width: 1; opacity: .6; }
+.tip { position: absolute; pointer-events: none; background: var(--ink); color: var(--bg); border-radius: 8px; padding: 7px 10px; font-size: .8rem; white-space: nowrap; transform: translate(-50%, calc(-100% - 10px)); z-index: 5; box-shadow: 0 4px 14px rgb(0 0 0 / .2); }
+.tip b { font-family: var(--font-num); font-weight: 500; }
+.empty { text-align: center; padding: 36px 16px; display: grid; gap: 12px; justify-items: center; background: var(--surface); border: 1px dashed var(--line); border-radius: var(--r); }
+
+/* Sessions list */
+.search { margin-bottom: 14px; }
+.month { margin-bottom: 18px; }
+.month-h { display: flex; justify-content: space-between; padding: 0 4px 6px; }
+.rows { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); overflow: hidden; }
+.row { display: grid; grid-template-columns: 44px minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 11px 14px; border: 0; border-top: 1px solid var(--line); background: none; width: 100%; text-align: left; cursor: pointer; }
+.row:first-child { border-top: 0; }
+.row:hover { background: var(--sunken); }
+.row .d { text-align: center; line-height: 1.1; }
+.row .d b { display: block; font-family: var(--font-display); font-size: 1.2rem; }
+.row .d small { font-size: .68rem; text-transform: uppercase; color: var(--muted); letter-spacing: .06em; }
+.row .mid { min-width: 0; }
+.row .mid div:first-child { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.row .mid div:last-child { font-size: .82rem; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.row .amt { text-align: right; }
+.row .amt b { font-family: var(--font-num); font-weight: 500; display: block; }
+.row .amt small { font-size: .78rem; color: var(--muted); font-family: var(--font-num); }
+.chip { display: inline-block; font-size: .7rem; font-weight: 600; padding: 1px 7px; border-radius: 999px; background: var(--sunken); color: var(--muted); margin-left: 6px; vertical-align: 1px; }
+
+/* Log form */
+.form { display: grid; gap: 16px; max-width: 560px; }
+.form fieldset { border: 0; padding: 0; margin: 0; display: grid; gap: 12px; }
+.form legend { padding: 0; margin-bottom: 4px; }
+.preview { background: var(--sunken); border-radius: var(--r); padding: 14px 16px; display: grid; gap: 6px; }
+.preview .line { display: flex; justify-content: space-between; gap: 8px; font-size: .9rem; }
+.preview .line.total { border-top: 1px solid var(--line); padding-top: 8px; font-weight: 600; font-size: 1rem; }
+.actions { display: flex; gap: 10px; flex-wrap: wrap; }
+.confirm { background: color-mix(in srgb, var(--loss) 10%, var(--surface)); border: 1px solid color-mix(in srgb, var(--loss) 40%, var(--line)); border-radius: var(--r); padding: 12px 14px; display: grid; gap: 10px; }
+
+/* Settings */
+.sections { display: grid; gap: 22px; max-width: 640px; }
+.sections section { display: grid; gap: 10px; }
+.table-wrap { overflow-x: auto; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); }
+table { border-collapse: collapse; width: 100%; font-size: .9rem; }
+th, td { text-align: left; padding: 8px 12px; border-top: 1px solid var(--line); white-space: nowrap; }
+thead th { border-top: 0; font-size: .72rem; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); }
+td input.input { padding: 6px 8px; }
+.toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(84px + env(safe-area-inset-bottom, 0px)); background: var(--ink); color: var(--bg); padding: 10px 16px; border-radius: 999px; font-weight: 600; font-size: .9rem; z-index: 20; }
+textarea.backup { font-family: var(--font-num); font-size: .75rem; min-height: 120px; }
+
+@media (max-width: 720px) {
+  .charts { grid-template-columns: 1fr; }
+  .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+</style>
+
+<div id="app"></div>
+<div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+
+<script>
+(() => {
+'use strict';
+
+/* ---------- small helpers ---------- */
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const num = v => { const n = parseFloat(String(v ?? '').replace(/[$,\s]/g, '')); return Number.isFinite(n) ? n : 0; };
+const money = (n, sign = false) => {
+  const r = Math.round(n);
+  const s = '$' + Math.abs(r).toLocaleString('en-US');
+  if (r < 0) return '−' + s;
+  return (sign && r > 0 ? '+' : '') + s;
+};
+const cls = n => (Math.round(n) > 0 ? 'win' : Math.round(n) < 0 ? 'loss' : '');
+const todayISO = () => { const d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); return d.toISOString().slice(0, 10); };
+const uid = () => (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2));
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const fmtDate = iso => { const [y, m, d] = iso.split('-').map(Number); return `${MONTHS[m - 1]} ${d}, ${y}`; };
+const hrs = h => (Math.round(h * 10) / 10).toLocaleString('en-US');
+function toast(msg) {
+  const t = $('#toast'); t.textContent = msg; t.hidden = false;
+  clearTimeout(toast._t); toast._t = setTimeout(() => (t.hidden = true), 2400);
+}
+
+/* ---------- storage (everything stays in this browser) ---------- */
+const ACC_KEY = 'pokerLedger.accounts.v1';
+const REMEMBER_KEY = 'pokerLedger.remembered';
+const ls = {
+  get(k) { try { return localStorage.getItem(k); } catch { return null; } },
+  set(k, v) { try { localStorage.setItem(k, v); return true; } catch { return false; } },
+  del(k) { try { localStorage.removeItem(k); } catch {} },
+};
+const accounts = {
+  all() { try { return JSON.parse(ls.get(ACC_KEY)) || {}; } catch { return {}; } },
+  save(a) { if (!ls.set(ACC_KEY, JSON.stringify(a))) throw new Error('This browser blocked saving. Turn off private browsing and try again.'); },
+};
+// IndexedDB holds the remembered key (non-extractable) so "Keep me signed in" works without storing the password.
+const idb = {
+  open() {
+    return new Promise((res, rej) => {
+      const r = indexedDB.open('pokerLedger', 1);
+      r.onupgradeneeded = () => r.result.createObjectStore('keys');
+      r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
+    });
+  },
+  async op(mode, fn) {
+    const db = await this.open();
+    return new Promise((res, rej) => {
+      const tx = db.transaction('keys', mode); const req = fn(tx.objectStore('keys'));
+      tx.oncomplete = () => res(req && req.result); tx.onerror = () => rej(tx.error);
+    });
+  },
+  get(k) { return this.op('readonly', s => s.get(k)).catch(() => null); },
+  put(k, v) { return this.op('readwrite', s => s.put(v, k)).catch(() => null); },
+  del(k) { return this.op('readwrite', s => s.delete(k)).catch(() => null); },
+};
+
+/* ---------- encryption: PBKDF2 → AES-GCM ---------- */
+const ITER = 250000;
+const enc = new TextEncoder(), dec = new TextDecoder();
+const b64 = buf => btoa(String.fromCharCode(...new Uint8Array(buf)));
+const unb64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
+async function deriveKey(password, salt, iter = ITER) {
+  const base = await crypto.subtle.importKey('raw', enc.encode(password), 'PBKDF2', false, ['deriveKey']);
+  return crypto.subtle.deriveKey({ name: 'PBKDF2', salt, iterations: iter, hash: 'SHA-256' }, base,
+    { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
+}
+async function seal(key, obj) {
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, enc.encode(JSON.stringify(obj)));
+  return { iv: b64(iv), ct: b64(ct) };
+}
+async function open(key, { iv, ct }) {
+  const pt = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: unb64(iv) }, key, unb64(ct));
+  return JSON.parse(dec.decode(pt));
+}
+
+/* ---------- data model ---------- */
+// IRS standard mileage rates (business), editable in Settings.
+const DEFAULT_RATES = [
+  { from: '2021-01-01', to: '2021-12-31', rate: 0.56 },
+  { from: '2022-01-01', to: '2022-06-30', rate: 0.585 },
+  { from: '2022-07-01', to: '2022-12-31', rate: 0.625 },
+  { from: '2023-01-01', to: '2023-12-31', rate: 0.655 },
+  { from: '2024-01-01', to: '2024-12-31', rate: 0.67 },
+  { from: '2025-01-01', to: '2025-12-31', rate: 0.70 },
+  { from: '2026-01-01', to: '2026-12-31', rate: 0.725 },
+];
+const newData = () => ({ v: 1, sessions: [], venues: [], rates: DEFAULT_RATES.map(r => ({ ...r })) });
+function normalize(d) {
+  d = d && typeof d === 'object' ? d : {};
+  return {
+    v: 1,
+    sessions: Array.isArray(d.sessions) ? d.sessions.map(normSession).filter(s => /^\d{4}-\d{2}-\d{2}$/.test(s.date)) : [],
+    venues: Array.isArray(d.venues) ? d.venues.filter(v => v && v.name).map(v => ({ name: String(v.name).trim(), miles: num(v.miles) })) : [],
+    rates: Array.isArray(d.rates) ? d.rates.filter(r => r && r.from).map(r => ({ from: r.from, to: r.to || '', rate: num(r.rate) })) : DEFAULT_RATES.map(r => ({ ...r })),
+  };
+}
+function normSession(s) {
+  return {
+    id: s.id || uid(), date: String(s.date || ''), venue: String(s.venue || '').trim(),
+    type: s.type === 'Tournament' ? 'Tournament' : 'Cash', stakes: String(s.stakes || '').trim(),
+    buyIn: num(s.buyIn), cashOut: num(s.cashOut), hours: num(s.hours), expenses: num(s.expenses),
+    tips: num(s.tips), miles: num(s.miles), rate: num(s.rate), notes: String(s.notes || ''),
+  };
+}
+const calc = s => {
+  const result = s.cashOut - s.buyIn;
+  const mileage = s.miles * s.rate;
+  const net = result - s.expenses - mileage;
+  return { result, mileage, net, hourly: s.hours > 0 ? net / s.hours : null };
+};
+const rateFor = (rates, date) => {
+  const hit = rates.filter(r => r.from <= date && (!r.to || date <= r.to)).sort((a, b) => b.from.localeCompare(a.from))[0];
+  if (hit) return hit.rate;
+  const past = rates.filter(r => r.from <= date).sort((a, b) => b.from.localeCompare(a.from))[0];
+  return past ? past.rate : 0;
+};
+
+/* ---------- app state ---------- */
+const S = { user: null, key: null, data: null, tab: 'dashboard', editing: null, filters: { year: 'all', type: 'all' }, q: '' };
+
+async function persist() {
+  const all = accounts.all(); const acc = all[S.user.toLowerCase()];
+  Object.assign(acc, await seal(S.key, S.data), { updated: new Date().toISOString() });
+  accounts.save(all);
+}
+
+/* ---------- auth ---------- */
+async function signUp(name, pw, remember) {
+  name = name.trim();
+  if (!/^[\w .@-]{2,40}$/.test(name)) throw new Error('Use 2 to 40 letters, numbers, spaces, dots, dashes or @ for the username.');
+  if (pw.length < 8) throw new Error('Use a password of at least 8 characters.');
+  const all = accounts.all();
+  if (all[name.toLowerCase()]) throw new Error('That username already exists on this device. Sign in instead.');
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const key = await deriveKey(pw, salt);
+  const data = newData();
+  all[name.toLowerCase()] = { name, salt: b64(salt), iter: ITER, created: new Date().toISOString(), ...(await seal(key, data)) };
+  accounts.save(all);
+  await enter(name, key, data, remember);
+}
+async function signIn(name, pw, remember) {
+  const acc = accounts.all()[name.trim().toLowerCase()];
+  if (!acc) throw new Error('No account with that username on this device.');
+  const key = await deriveKey(pw, unb64(acc.salt), acc.iter);
+  let data;
+  try { data = await open(key, acc); } catch { throw new Error('Wrong password. Try again.'); }
+  await enter(acc.name, key, normalize(data), remember);
+}
+async function enter(name, key, data, remember) {
+  Object.assign(S, { user: name, key, data, tab: 'dashboard', editing: null });
+  if (remember) { await idb.put(name.toLowerCase(), key); ls.set(REMEMBER_KEY, name.toLowerCase()); }
+  render();
+}
+async function signOut() {
+  if (S.user) await idb.del(S.user.toLowerCase());
+  ls.del(REMEMBER_KEY);
+  Object.assign(S, { user: null, key: null, data: null });
+  render();
+}
+async function tryRemembered() {
+  const who = ls.get(REMEMBER_KEY); if (!who) return false;
+  const acc = accounts.all()[who]; const key = acc && await idb.get(who);
+  if (!acc || !key) return false;
+  try { const data = await open(key, acc); Object.assign(S, { user: acc.name, key, data: normalize(data) }); return true; }
+  catch { return false; }
+}
+
+/* ---------- views ---------- */
+const ICON = {
+  chip: `<svg width="34" height="34" viewBox="0 0 34 34" aria-hidden="true"><circle cx="17" cy="17" r="16" fill="var(--accent)"/><circle cx="17" cy="17" r="10" fill="none" stroke="var(--accent-ink)" stroke-width="2" stroke-dasharray="4 3.85"/><circle cx="17" cy="17" r="5.5" fill="var(--accent-ink)"/></svg>`,
+  dash: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 20h18"/><path d="M5 16l4-5 4 3 6-8"/></svg>`,
+  list: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M8 6h13M8 12h13M8 18h13"/><circle cx="3.5" cy="6" r="1" fill="currentColor"/><circle cx="3.5" cy="12" r="1" fill="currentColor"/><circle cx="3.5" cy="18" r="1" fill="currentColor"/></svg>`,
+  plus: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>`,
+  gear: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg>`,
+};
+
+function render() {
+  const app = $('#app');
+  if (!S.user) { app.innerHTML = authView(); bindAuth(); return; }
+  const views = { dashboard: dashView, sessions: listView, log: logView, settings: settingsView };
+  app.innerHTML = `
+    <div class="wrap">
+      <div class="top">
+        <div class="brand">${ICON.chip}<b>Poker Ledger</b></div>
+        <div class="who">Signed in as <b>${esc(S.user)}</b></div>
+      </div>
+      <main id="view">${views[S.tab]()}</main>
+    </div>
+    <div class="tabs"><nav aria-label="Sections">
+      ${tabBtn('dashboard', 'Results', ICON.dash)}
+      ${tabBtn('sessions', 'Sessions', ICON.list)}
+      <button class="log-btn" data-tab="log" ${S.tab === 'log' ? 'aria-current="page"' : ''}><span class="pill">${ICON.plus}</span>Log</button>
+      ${tabBtn('settings', 'Account', ICON.gear)}
+    </nav></div>`;
+  $$('.tabs [data-tab]').forEach(b => b.onclick = () => { S.tab = b.dataset.tab; if (S.tab === 'log') S.editing = null; render(); scrollTo(0, 0); });
+  ({ dashboard: bindDash, sessions: bindList, log: bindLog, settings: bindSettings })[S.tab]();
+}
+const tabBtn = (id, label, icon) => `<button data-tab="${id}" ${S.tab === id ? 'aria-current="page"' : ''}>${icon}${label}</button>`;
+
+/* --- sign in / create account --- */
+function authView() {
+  const names = Object.values(accounts.all()).map(a => a.name);
+  const mode = authView.mode || (names.length ? 'in' : 'up');
+  return `<div class="auth"><div class="auth-card">
+    <div class="brand">${ICON.chip}<b>Poker Ledger</b></div>
+    <div>
+      <h1>${mode === 'in' ? 'Sign in' : 'Create your account'}</h1>
+      <p class="muted" style="margin:6px 0 0">Track every session, your hourly rate and where you win.</p>
+    </div>
+    <form id="authForm" novalidate>
+      <label class="field"><span>Username</span>
+        <input class="input" id="au" autocomplete="username" ${names.length === 1 && mode === 'in' ? `value="${esc(names[0])}"` : ''} required></label>
+      <label class="field"><span>Password</span>
+        <input class="input" id="ap" type="password" autocomplete="${mode === 'in' ? 'current-password' : 'new-password'}" required></label>
+      ${mode === 'up' ? `<label class="field"><span>Confirm password</span><input class="input" id="ap2" type="password" autocomplete="new-password" required></label>` : ''}
+      <label class="check"><input type="checkbox" id="ar" checked> Keep me signed in on this device</label>
+      <div class="error" id="aerr" role="alert" hidden></div>
+      <button class="btn primary block" id="asub">${mode === 'in' ? 'Sign in' : 'Create account'}</button>
+      <button type="button" class="btn block" id="aswitch">${mode === 'in' ? 'Create a new account' : 'I already have an account'}</button>
+    </form>
+    <div class="privacy">
+      <div><b>Your data stays on this device.</b> Sessions are encrypted with your password and saved only in this browser. Nothing is sent to a server.</div>
+      <div>There is no password reset, so keep your password safe and export a backup from Account now and then.</div>
+    </div>
+  </div></div>`;
+}
+function bindAuth() {
+  const names = Object.values(accounts.all());
+  const mode = authView.mode || (names.length ? 'in' : 'up');
+  $('#aswitch').onclick = () => { authView.mode = mode === 'in' ? 'up' : 'in'; render(); };
+  $('#authForm').onsubmit = async e => {
+    e.preventDefault();
+    const err = $('#aerr'); err.hidden = true;
+    const u = $('#au').value, p = $('#ap').value, r = $('#ar').checked;
+    try {
+      if (!window.crypto || !crypto.subtle) throw new Error('This browser can’t encrypt data. Open the app over https in a current browser.');
+      if (mode === 'up' && p !== $('#ap2').value) throw new Error('The two passwords don’t match.');
+      $('#asub').disabled = true; $('#asub').textContent = mode === 'in' ? 'Signing in…' : 'Creating…';
+      mode === 'in' ? await signIn(u, p, r) : await signUp(u, p, r);
+      authView.mode = null;
+    } catch (x) {
+      err.textContent = x.message; err.hidden = false;
+      $('#asub').disabled = false; $('#asub').textContent = mode === 'in' ? 'Sign in' : 'Create account';
+    }
+  };
+}
+
+/* --- dashboard --- */
+function filtered() {
+  const { year, type } = S.filters;
+  return S.data.sessions.filter(s => (year === 'all' || s.date.startsWith(year)) && (type === 'all' || s.type === type))
+    .sort((a, b) => a.date.localeCompare(b.date));
+}
+function dashView() {
+  const all = S.data.sessions;
+  if (!all.length) return `<div class="empty">
+      <h2>No sessions yet</h2>
+      <p class="muted" style="margin:0;max-width:36ch">Log your first session and your profit, hourly rate and best venues show up here. Moving from another device? Import a backup from Account.</p>
+      <button class="btn primary" id="goLog">Log a session</button></div>`;
+  const years = [...new Set(all.map(s => s.date.slice(0, 4)))].sort().reverse();
+  const rows = filtered();
+  const t = rows.reduce((a, s) => { const c = calc(s); a.net += c.net; a.hours += s.hours; a.win += c.net > 0 ? 1 : 0; a.mil += c.mileage; a.exp += s.expenses; a.tips += s.tips; return a; }, { net: 0, hours: 0, win: 0, mil: 0, exp: 0, tips: 0 });
+  const scope = (S.filters.year === 'all' ? 'All time' : S.filters.year) + (S.filters.type === 'all' ? '' : ` · ${S.filters.type === 'Cash' ? 'Cash games' : 'Tournaments'}`);
+  return `
+    <div class="filters">
+      <select class="input" id="fy" aria-label="Year"><option value="all">All years</option>${years.map(y => `<option ${S.filters.year === y ? 'selected' : ''}>${y}</option>`).join('')}</select>
+      <div class="seg" role="group" aria-label="Game type">
+        ${[['all', 'All games'], ['Cash', 'Cash'], ['Tournament', 'Tournaments']].map(([v, l]) => `<button data-type="${v}" aria-pressed="${S.filters.type === v}">${l}</button>`).join('')}
+      </div>
+    </div>
+    <div class="hero">
+      <span class="label">Net profit · ${esc(scope)}</span>
+      <span class="big ${cls(t.net)}">${money(t.net, true)}</span>
+      <span class="muted" style="font-size:.85rem">After ${money(t.mil)} mileage and ${money(t.exp)} other expenses</span>
+    </div>
+    <div class="stats">
+      <div class="stat"><span class="label">Hourly</span><span class="v ${cls(t.net)}">${t.hours ? money(t.net / t.hours, true) + '/h' : '—'}</span></div>
+      <div class="stat"><span class="label">Sessions</span><span class="v">${rows.length.toLocaleString()}</span></div>
+      <div class="stat"><span class="label">Winning</span><span class="v">${rows.length ? Math.round(100 * t.win / rows.length) + '%' : '—'}</span></div>
+      <div class="stat"><span class="label">Hours</span><span class="v">${hrs(t.hours)}</span></div>
+    </div>
+    ${rows.length ? `<div class="charts">
+      <section class="panel wide"><header><h2>Running total</h2><span class="hint">Net profit after each session</span></header><div class="chart" id="cRun"></div></section>
+      <section class="panel"><header><h2>By venue</h2><span class="hint">Net profit</span></header><div class="chart" id="cVenue"></div></section>
+      <section class="panel"><header><h2>${S.filters.year === 'all' ? 'By year' : 'By month'}</h2><span class="hint">Net profit</span></header><div class="chart" id="cYear"></div></section>
+      <section class="panel wide"><header><h2>By session length</h2><span class="hint">Average net per session</span></header><div class="chart" id="cHours"></div></section>
+    </div>` : `<div class="empty"><p class="muted" style="margin:0">No sessions match these filters.</p></div>`}`;
+}
+function bindDash() {
+  const g = $('#goLog'); if (g) { g.onclick = () => { S.tab = 'log'; render(); }; return; }
+  $('#fy').onchange = e => { S.filters.year = e.target.value; render(); };
+  $$('[data-type]').forEach(b => b.onclick = () => { S.filters.type = b.dataset.type; render(); });
+  drawCharts();
+}
+function drawCharts() {
+  const rows = filtered(); if (!rows.length) return;
+  // running total
+  let run = 0;
+  const pts = rows.map(s => { const c = calc(s); run += c.net; return { s, net: c.net, run }; });
+  lineChart($('#cRun'), pts);
+  // by venue
+  const byV = group(rows, s => s.venue || 'Unknown');
+  barsH($('#cVenue'), byV.sort((a, b) => b.net - a.net));
+  // by year or month
+  if (S.filters.year === 'all') barsV($('#cYear'), group(rows, s => s.date.slice(0, 4)).sort((a, b) => a.key.localeCompare(b.key)));
+  else {
+    const g = group(rows, s => s.date.slice(5, 7));
+    barsV($('#cYear'), g.sort((a, b) => a.key.localeCompare(b.key)).map(x => ({ ...x, label: MONTHS[+x.key - 1] })));
+  }
+  // by length
+  const buckets = [['Under 2h', 0, 2], ['2–4h', 2, 4], ['4–6h', 4, 6], ['6–8h', 6, 8], ['8h+', 8, 1e9]];
+  const hb = buckets.map(([label, lo, hi]) => {
+    const r = rows.filter(s => s.hours >= lo && s.hours < hi && s.hours > 0);
+    const net = r.reduce((a, s) => a + calc(s).net, 0);
+    return { key: label, label, n: r.length, net: r.length ? net / r.length : 0, total: net };
+  }).filter(b => b.n);
+  barsV($('#cHours'), hb, b => `${b.label}: <b>${money(b.net, true)}</b> avg · ${b.n} session${b.n === 1 ? '' : 's'}`);
+}
+function group(rows, keyFn) {
+  const m = new Map();
+  rows.forEach(s => { const k = keyFn(s), id = k.toLowerCase(); const c = calc(s); const g = m.get(id) || { key: k, label: k, net: 0, n: 0, hours: 0 }; g.net += c.net; g.n++; g.hours += s.hours; m.set(id, g); });
+  return [...m.values()];
+}
+
+/* ---------- charts (plain SVG) ---------- */
+const NS = 'http://www.w3.org/2000/svg';
+function niceTicks(min, max, count = 4) {
+  if (min === max) { min -= 1; max += 1; }
+  const span = max - min, step0 = span / count, mag = Math.pow(10, Math.floor(Math.log10(step0)));
+  const step = [1, 2, 2.5, 5, 10].map(m => m * mag).find(s => span / s <= count) || 10 * mag;
+  const lo = Math.floor(min / step) * step, hi = Math.ceil(max / step) * step, out = [];
+  for (let v = lo; v <= hi + step / 2; v += step) out.push(Math.round(v * 100) / 100);
+  return out;
+}
+const short = n => { const a = Math.abs(n), s = n < 0 ? '−' : ''; return s + '$' + (a >= 1000 ? (a / 1000).toFixed(a >= 10000 ? 0 : 1).replace(/\.0$/, '') + 'k' : Math.round(a)); };
+function tipAt(el, x, y, html) {
+  let t = $('.tip', el); if (!t) { t = document.createElement('div'); t.className = 'tip'; el.appendChild(t); }
+  const w = el.clientWidth;
+  t.innerHTML = html; t.hidden = false;
+  t.style.left = Math.min(Math.max(x, 70), w - 70) + 'px'; t.style.top = y + 'px';
+}
+const hideTip = el => { const t = $('.tip', el); if (t) t.hidden = true; };
+
+function lineChart(el, pts) {
+  const W = Math.max(el.clientWidth, 280), H = W < 500 ? 200 : 240, L = 52, R = 12, T = 12, B = 26;
+  const ys = pts.map(p => p.run).concat(0);
+  const ticks = niceTicks(Math.min(...ys), Math.max(...ys));
+  const y0 = ticks[0], y1 = ticks[ticks.length - 1];
+  const X = i => L + (pts.length === 1 ? (W - L - R) / 2 : i * (W - L - R) / (pts.length - 1));
+  const Y = v => T + (H - T - B) * (1 - (v - y0) / (y1 - y0));
+  const line = pts.map((p, i) => `${i ? 'L' : 'M'}${X(i).toFixed(1)},${Y(p.run).toFixed(1)}`).join('');
+  const area = `${line}L${X(pts.length - 1).toFixed(1)},${Y(0)}L${X(0).toFixed(1)},${Y(0)}Z`;
+  // year labels on x axis at first session of each year
+  const yearMarks = []; let last = '';
+  pts.forEach((p, i) => { const y = p.s.date.slice(0, 4); if (y !== last) { yearMarks.push([i, y]); last = y; } });
+  const spaced = yearMarks.filter((m, k) => k === 0 || X(m[0]) - X(yearMarks[k - 1][0]) >= 36);
+  const showYears = yearMarks.length > 1 ? spaced.filter((m, k) => k === 0 || X(m[0]) - X(spaced[k - 1][0]) >= 36) : [[0, fmtDate(pts[0].s.date)], [pts.length - 1, fmtDate(pts[pts.length - 1].s.date)]];
+  const end = pts[pts.length - 1];
+  el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Running total of net profit, ending at ${money(end.run)}">
+    <defs><linearGradient id="gArea" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="var(--accent)" stop-opacity=".22"/><stop offset="1" stop-color="var(--accent)" stop-opacity="0"/></linearGradient></defs>
+    ${ticks.map(v => `<line class="${v === 0 ? 'zero' : 'gridline'}" x1="${L}" x2="${W - R}" y1="${Y(v)}" y2="${Y(v)}"/><text x="${L - 8}" y="${Y(v) + 4}" text-anchor="end">${short(v)}</text>`).join('')}
+    ${showYears.map(([i, y], k) => `<text x="${X(i)}" y="${H - 6}" text-anchor="${k === 0 ? 'start' : k === showYears.length - 1 && yearMarks.length <= 1 ? 'end' : 'middle'}">${y}</text>`).join('')}
+    <path d="${area}" fill="url(#gArea)"/>
+    <path d="${line}" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linejoin="round"/>
+    <circle cx="${X(pts.length - 1)}" cy="${Y(end.run)}" r="4" fill="var(--accent)" stroke="var(--surface)" stroke-width="2"/>
+    <line id="xh" y1="${T}" y2="${H - B}" stroke="var(--muted)" stroke-dasharray="3 3" visibility="hidden"/>
+    <circle id="xd" r="4.5" fill="var(--accent)" stroke="var(--surface)" stroke-width="2" visibility="hidden"/>
+    <rect x="${L}" y="0" width="${W - L - R}" height="${H}" fill="transparent" id="hit"/>
+  </svg>`;
+  const svg = $('svg', el), hit = $('#hit', el), xh = $('#xh', el), xd = $('#xd', el);
+  const move = ev => {
+    const r = svg.getBoundingClientRect(), sx = (ev.clientX - r.left) * W / r.width;
+    const i = Math.max(0, Math.min(pts.length - 1, Math.round((sx - L) / ((W - L - R) / Math.max(1, pts.length - 1)))));
+    const p = pts[i], px = X(i), py = Y(p.run);
+    xh.setAttribute('x1', px); xh.setAttribute('x2', px); xh.setAttribute('visibility', 'visible');
+    xd.setAttribute('cx', px); xd.setAttribute('cy', py); xd.setAttribute('visibility', 'visible');
+    tipAt(el, px * r.width / W, py * r.height / H, `${fmtDate(p.s.date)} · ${esc(p.s.venue)}<br>Session <b>${money(p.net, true)}</b> · Total <b>${money(p.run, true)}</b>`);
+  };
+  const leave = () => { xh.setAttribute('visibility', 'hidden'); xd.setAttribute('visibility', 'hidden'); hideTip(el); };
+  hit.addEventListener('pointermove', move); hit.addEventListener('pointerdown', move); hit.addEventListener('pointerleave', leave);
+}
+
+function barsH(el, items) {
+  // Keep the biggest winners and losers; fold the small middle into one row.
+  let list = items;
+  if (items.length > 12) {
+    const top = items.slice(0, 6), bottom = items.slice(-5), mid = items.slice(6, -5);
+    list = top.concat([{ key: 'other', label: `${mid.length} other venues`, net: mid.reduce((a, x) => a + x.net, 0), n: mid.reduce((a, x) => a + x.n, 0) }], bottom);
+  }
+  const W = Math.max(el.clientWidth, 260), rowH = 26, T = 4, B = 4, labW = Math.min(130, W * 0.36), valW = 62;
+  const H = T + B + list.length * rowH;
+  const lo = Math.min(0, ...list.map(x => x.net)), hi = Math.max(0, ...list.map(x => x.net));
+  const span = (hi - lo) || 1, x0 = labW + 8, x1 = W - valW;
+  const X = v => x0 + (v - lo) / span * (x1 - x0);
+  el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Net profit by venue">
+    <line class="zero" x1="${X(0)}" x2="${X(0)}" y1="${T}" y2="${H - B}"/>
+    ${list.map((it, i) => {
+      const y = T + i * rowH, bx = Math.min(X(0), X(it.net)), bw = Math.max(1.5, Math.abs(X(it.net) - X(0)));
+      const lab = it.label.length > 18 ? it.label.slice(0, 17) + '…' : it.label;
+      return `<g data-i="${i}" class="bar">
+        <rect x="0" y="${y}" width="${W}" height="${rowH}" fill="transparent"/>
+        <text x="${labW}" y="${y + rowH / 2 + 4}" text-anchor="end" style="fill:var(--ink)">${esc(lab)}</text>
+        <rect x="${bx}" y="${y + 6}" width="${bw}" height="${rowH - 12}" rx="3" fill="${it.net >= 0 ? 'var(--win)' : 'var(--loss)'}"/>
+        <text x="${W}" y="${y + rowH / 2 + 4}" text-anchor="end" class="num" style="fill:var(--ink);font-family:var(--font-num)">${short(it.net)}</text>
+      </g>`;
+    }).join('')}
+  </svg>`;
+  bindBarTips(el, list, it => `${esc(it.label)}<br><b>${money(it.net, true)}</b> · ${it.n} session${it.n === 1 ? '' : 's'}`, W, H, (i) => [W / 2, T + i * rowH + 4]);
+}
+
+function barsV(el, items, tipFn) {
+  const W = Math.max(el.clientWidth, 260), H = 190, L = 46, R = 8, T = 18, B = 24;
+  const ticks = niceTicks(Math.min(0, ...items.map(x => x.net)), Math.max(0, ...items.map(x => x.net)), 4);
+  const y0 = ticks[0], y1 = ticks[ticks.length - 1];
+  const Y = v => T + (H - T - B) * (1 - (v - y0) / (y1 - y0));
+  const slot = (W - L - R) / items.length, bw = Math.min(44, slot * 0.6);
+  el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Net profit bars">
+    ${ticks.map(v => `<line class="${v === 0 ? 'zero' : 'gridline'}" x1="${L}" x2="${W - R}" y1="${Y(v)}" y2="${Y(v)}"/><text x="${L - 8}" y="${Y(v) + 4}" text-anchor="end">${short(v)}</text>`).join('')}
+    ${items.map((it, i) => {
+      const cx = L + slot * (i + .5), top = Math.min(Y(0), Y(it.net)), h = Math.max(1.5, Math.abs(Y(it.net) - Y(0)));
+      const ly = it.net >= 0 ? top - 5 : top + h + 12;
+      return `<g data-i="${i}" class="bar">
+        <rect x="${cx - slot / 2}" y="${T}" width="${slot}" height="${H - T - B}" fill="transparent"/>
+        <rect x="${cx - bw / 2}" y="${top}" width="${bw}" height="${h}" rx="3" fill="${it.net >= 0 ? 'var(--win)' : 'var(--loss)'}"/>
+        ${items.length <= 8 ? `<text x="${cx}" y="${ly}" text-anchor="middle" style="fill:var(--ink);font-family:var(--font-num);font-size:10.5px">${short(it.net)}</text>` : ''}
+        <text x="${cx}" y="${H - 6}" text-anchor="middle">${esc(it.label)}</text>
+      </g>`;
+    }).join('')}
+  </svg>`;
+  bindBarTips(el, items, tipFn || (it => `${esc(it.label)}<br><b>${money(it.net, true)}</b> · ${it.n} session${it.n === 1 ? '' : 's'}${it.hours ? ` · ${it.hours ? money(it.net / it.hours, true) + '/h' : ''}` : ''}`), W, H,
+    i => [L + slot * (i + .5), Math.min(Y(0), Y(items[i].net))]);
+}
+function bindBarTips(el, items, fn, W, H, anchor) {
+  const svg = $('svg', el);
+  $$('g.bar', el).forEach(g => {
+    const show = () => { const i = +g.dataset.i, r = svg.getBoundingClientRect(), [ax, ay] = anchor(i); g.style.opacity = 1; $$('g.bar', el).forEach(o => o !== g && (o.style.opacity = .55)); tipAt(el, ax * r.width / W, ay * r.height / H, fn(items[i])); };
+    g.addEventListener('pointerenter', show); g.addEventListener('pointerdown', show);
+    g.addEventListener('pointerleave', () => { $$('g.bar', el).forEach(o => (o.style.opacity = 1)); hideTip(el); });
+  });
+}
+
+/* --- sessions list --- */
+function listView() {
+  const q = S.q.trim().toLowerCase();
+  const rows = S.data.sessions.filter(s => !q || [s.venue, s.stakes, s.notes, s.type, s.date].join(' ').toLowerCase().includes(q))
+    .sort((a, b) => b.date.localeCompare(a.date));
+  const months = new Map();
+  rows.forEach(s => { const k = s.date.slice(0, 7); if (!months.has(k)) months.set(k, []); months.get(k).push(s); });
+  return `<div style="display:grid;gap:4px;margin-bottom:14px"><h1>Sessions</h1><span class="muted">${S.data.sessions.length.toLocaleString()} logged. Tap one to edit it.</span></div>
+    <input class="input search" id="q" type="search" placeholder="Search venue, stakes or notes" value="${esc(S.q)}" aria-label="Search sessions">
+    <div id="months">${!S.data.sessions.length ? `<div class="empty"><p class="muted" style="margin:0">Nothing logged yet.</p><button class="btn primary" id="goLog2">Log a session</button></div>`
+      : !rows.length ? `<div class="empty"><p class="muted" style="margin:0">No sessions match “${esc(S.q)}”.</p></div>`
+      : [...months].map(([k, list]) => {
+        const net = list.reduce((a, s) => a + calc(s).net, 0); const [y, m] = k.split('-');
+        return `<div class="month"><div class="month-h"><span class="label">${MONTHS[+m - 1]} ${y}</span><span class="num ${cls(net)}" style="font-size:.85rem">${money(net, true)}</span></div>
+          <div class="rows">${list.map(rowHTML).join('')}</div></div>`;
+      }).join('')}</div>`;
+}
+function rowHTML(s) {
+  const c = calc(s), [, m, d] = s.date.split('-');
+  return `<button class="row" data-id="${s.id}">
+    <span class="d"><b>${+d}</b><small>${MONTHS[+m - 1]}</small></span>
+    <span class="mid"><div>${esc(s.venue || 'Unknown venue')}${s.type === 'Tournament' ? '<span class="chip">MTT</span>' : ''}</div>
+      <div>${esc([s.stakes && s.type === 'Cash' ? s.stakes : '', s.hours ? hrs(s.hours) + 'h' : '', s.notes].filter(Boolean).join(' · ') || ' ')}</div></span>
+    <span class="amt"><b class="${cls(c.net)}">${money(c.net, true)}</b><small>${c.hourly != null ? money(c.hourly, true) + '/h' : ''}</small></span>
+  </button>`;
+}
+function bindList() {
+  const q = $('#q');
+  q.oninput = () => { S.q = q.value; const pos = q.selectionStart; render(); const n = $('#q'); n.focus(); n.setSelectionRange(pos, pos); };
+  const g = $('#goLog2'); if (g) g.onclick = () => { S.tab = 'log'; render(); };
+  $$('.row').forEach(r => r.onclick = () => { S.editing = r.dataset.id; S.tab = 'log'; render(); scrollTo(0, 0); });
+}
+
+/* --- log / edit form --- */
+function logView() {
+  const ed = S.editing && S.data.sessions.find(s => s.id === S.editing);
+  const last = [...S.data.sessions].sort((a, b) => b.date.localeCompare(a.date))[0];
+  const s = ed || { date: todayISO(), venue: last?.venue || '', type: last?.type || 'Cash', stakes: last?.stakes || '', buyIn: '', cashOut: '', hours: '', expenses: '', tips: '', miles: last ? last.miles : '', notes: '' };
+  const venues = [...new Set([...S.data.venues.map(v => v.name), ...S.data.sessions.map(x => x.venue)].filter(Boolean))].sort();
+  const stakes = [...new Set(S.data.sessions.map(x => x.stakes).filter(Boolean))].sort();
+  const v = x => (x === '' || x == null || (x === 0 && !ed) ? '' : x);
+  return `<form class="form" id="logForm" novalidate>
+    <div style="display:grid;gap:4px"><h1>${ed ? 'Edit session' : 'Log a session'}</h1>
+      <span class="muted">${ed ? fmtDate(ed.date) + ' · ' + esc(ed.venue) : 'Fill in what you know. You can edit it later.'}</span></div>
+    <fieldset>
+      <div class="grid2">
+        <label class="field"><span>Date</span><input class="input" id="fDate" type="date" value="${esc(s.date)}" required></label>
+        <label class="field"><span>Game</span>
+          <select class="input" id="fType"><option ${s.type === 'Cash' ? 'selected' : ''} value="Cash">Cash game</option><option ${s.type === 'Tournament' ? 'selected' : ''} value="Tournament">Tournament</option></select></label>
+      </div>
+      <div class="grid2">
+        <label class="field"><span>Venue</span><input class="input" id="fVenue" list="venueList" value="${esc(s.venue)}" placeholder="Red Rock" autocomplete="off"></label>
+        <label class="field"><span id="stakesLab">${s.type === 'Tournament' ? 'Event' : 'Stakes'}</span><input class="input" id="fStakes" list="stakesList" value="${esc(s.stakes)}" placeholder="${s.type === 'Tournament' ? '$150 Deepstack' : '1/3'}" autocomplete="off"></label>
+      </div>
+      <datalist id="venueList">${venues.map(x => `<option value="${esc(x)}">`).join('')}</datalist>
+      <datalist id="stakesList">${stakes.map(x => `<option value="${esc(x)}">`).join('')}</datalist>
+    </fieldset>
+    <fieldset>
+      <legend class="label">Money</legend>
+      <div class="grid2">
+        <label class="field"><span>Buy-in ($)</span><input class="input num" id="fBuy" inputmode="decimal" value="${v(s.buyIn)}" placeholder="0"></label>
+        <label class="field"><span>Cash out ($)</span><input class="input num" id="fOut" inputmode="decimal" value="${v(s.cashOut)}" placeholder="0"></label>
+      </div>
+      <div class="grid2">
+        <label class="field"><span>Hours played</span><input class="input num" id="fHours" inputmode="decimal" value="${v(s.hours)}" placeholder="4.5"></label>
+        <label class="field"><span>Other expenses ($)</span><input class="input num" id="fExp" inputmode="decimal" value="${v(s.expenses)}" placeholder="Food, parking"></label>
+      </div>
+      <div class="grid2">
+        <label class="field"><span>Round-trip miles</span><input class="input num" id="fMiles" inputmode="decimal" value="${v(s.miles)}" placeholder="0"></label>
+        <label class="field"><span>Tips &amp; drinks ($)</span><input class="input num" id="fTips" inputmode="decimal" value="${v(s.tips)}" placeholder="0"></label>
+      </div>
+      <span class="hint">Miles fill in from the venue and are charged at the IRS rate for the date. Tips are recorded but not subtracted, since they come out of your stack.</span>
+    </fieldset>
+    <label class="field"><span>Notes</span><textarea class="input" id="fNotes" placeholder="How did it go?">${esc(s.notes)}</textarea></label>
+    <div class="preview" id="pv" aria-live="polite"></div>
+    <div class="error" id="ferr" role="alert" hidden></div>
+    <div class="actions">
+      <button class="btn primary" id="fSave">${ed ? 'Save changes' : 'Save session'}</button>
+      ${ed ? `<button type="button" class="btn" id="fCancel">Cancel</button><button type="button" class="btn danger" id="fDel">Delete</button>` : ''}
+    </div>
+    <div id="delConfirm" class="confirm" hidden>
+      <span>Delete this session? This can’t be undone.</span>
+      <div class="actions"><button type="button" class="btn danger solid small" id="fDelYes">Delete session</button><button type="button" class="btn small" id="fDelNo">Keep it</button></div>
+    </div>
+  </form>`;
+}
+function readForm() {
+  return normSession({
+    id: S.editing || undefined, date: $('#fDate').value, venue: $('#fVenue').value, type: $('#fType').value, stakes: $('#fStakes').value,
+    buyIn: $('#fBuy').value, cashOut: $('#fOut').value, hours: $('#fHours').value, expenses: $('#fExp').value,
+    tips: $('#fTips').value, miles: $('#fMiles').value, rate: rateFor(S.data.rates, $('#fDate').value), notes: $('#fNotes').value,
+  });
+}
+function bindLog() {
+  const ed = S.editing && S.data.sessions.find(s => s.id === S.editing);
+  const upd = () => {
+    const s = readForm();
+    if (ed && ed.date === s.date) s.rate = ed.rate; // keep the rate the session was saved with
+    const c = calc(s);
+    $('#pv').innerHTML = `
+      <div class="line"><span>Result</span><span class="num ${cls(c.result)}">${money(c.result, true)}</span></div>
+      <div class="line"><span>Mileage (${hrs(s.miles)} mi × $${s.rate.toFixed(3)})</span><span class="num">${c.mileage ? '−' + money(c.mileage) : '$0'}</span></div>
+      <div class="line"><span>Other expenses</span><span class="num">${s.expenses ? '−' + money(s.expenses) : '$0'}</span></div>
+      <div class="line total"><span>Net profit${c.hourly != null ? ` · ${money(c.hourly, true)}/h` : ''}</span><span class="num ${cls(c.net)}">${money(c.net, true)}</span></div>`;
+  };
+  $$('#logForm input, #logForm select, #logForm textarea').forEach(i => i.addEventListener('input', upd));
+  $('#fType').addEventListener('change', () => { const t = $('#fType').value === 'Tournament'; $('#stakesLab').textContent = t ? 'Event' : 'Stakes'; $('#fStakes').placeholder = t ? '$150 Deepstack' : '1/3'; });
+  $('#fVenue').addEventListener('change', () => {
+    const name = $('#fVenue').value.trim().toLowerCase();
+    const known = S.data.venues.find(v => v.name.toLowerCase() === name) ||
+      [...S.data.sessions].sort((a, b) => b.date.localeCompare(a.date)).find(s => s.venue.toLowerCase() === name);
+    if (known) { $('#fMiles').value = known.miles || ''; upd(); }
+  });
+  upd();
+  $('#logForm').onsubmit = async e => {
+    e.preventDefault();
+    const s = readForm(), err = $('#ferr'); err.hidden = true;
+    if (ed && ed.date === s.date) s.rate = ed.rate;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(s.date)) { err.textContent = 'Pick the date you played.'; err.hidden = false; return; }
+    if (!s.venue) { err.textContent = 'Add the venue, for example Red Rock or Home game.'; err.hidden = false; return; }
+    if (ed) Object.assign(ed, s); else S.data.sessions.push(s);
+    const vn = S.data.venues.find(v => v.name.toLowerCase() === s.venue.toLowerCase());
+    if (vn) vn.miles = s.miles; else S.data.venues.push({ name: s.venue, miles: s.miles });
+    try { await persist(); } catch (x) { err.textContent = x.message; err.hidden = false; return; }
+    toast(ed ? 'Session updated' : `Saved · ${money(calc(s).net, true)}`);
+    S.editing = null; S.tab = ed ? 'sessions' : 'dashboard'; render(); scrollTo(0, 0);
+  };
+  if (ed) {
+    $('#fCancel').onclick = () => { S.editing = null; S.tab = 'sessions'; render(); };
+    $('#fDel').onclick = () => { $('#delConfirm').hidden = false; };
+    $('#fDelNo').onclick = () => { $('#delConfirm').hidden = true; };
+    $('#fDelYes').onclick = async () => {
+      S.data.sessions = S.data.sessions.filter(s => s.id !== ed.id);
+      await persist(); toast('Session deleted'); S.editing = null; S.tab = 'sessions'; render();
+    };
+  }
+}
+
+/* --- account / settings --- */
+function settingsView() {
+  const venues = [...S.data.venues].sort((a, b) => a.name.localeCompare(b.name));
+  const rates = [...S.data.rates].sort((a, b) => b.from.localeCompare(a.from));
+  return `<div class="sections">
+    <div style="display:grid;gap:4px"><h1>Account</h1><span class="muted">Signed in as ${esc(S.user)} on this device.</span></div>
+
+    <section>
+      <h2>Backup</h2>
+      <p class="muted" style="margin:0">Your sessions live only in this browser. Export a backup to keep a copy or to move to another phone or computer, then import it there.</p>
+      <div class="actions">
+        <button class="btn primary" id="bExport">Export backup</button>
+        <label class="btn" for="bFile" style="display:inline-flex;align-items:center">Import backup</label>
+        <input type="file" id="bFile" accept=".json,application/json" hidden>
+      </div>
+      <div id="bCopyBox" hidden style="display:grid;gap:8px">
+        <span class="hint">If no file downloaded, copy this text and save it as a .json file.</span>
+        <textarea class="input backup" id="bText" readonly></textarea>
+        <div class="actions"><button class="btn small" id="bCopy">Copy backup text</button></div>
+      </div>
+      <div id="bImport" class="confirm" hidden style="background:var(--sunken);border-color:var(--line)"></div>
+    </section>
+
+    <section>
+      <h2>Venues</h2>
+      <p class="muted" style="margin:0">Round-trip miles fill in automatically when you log a session at that venue.</p>
+      ${venues.length ? `<div class="table-wrap"><table><thead><tr><th>Venue</th><th>Round-trip miles</th></tr></thead><tbody>
+        ${venues.map((v, i) => `<tr><td>${esc(v.name)}</td><td><input class="input num" style="max-width:110px" inputmode="decimal" data-venue="${esc(v.name)}" value="${v.miles || ''}" aria-label="Miles for ${esc(v.name)}"></td></tr>`).join('')}
+      </tbody></table></div>` : `<p class="hint" style="margin:0">Venues appear here after you log a session.</p>`}
+    </section>
+
+    <section>
+      <h2>Mileage rates</h2>
+      <p class="muted" style="margin:0">Dollars per mile used for driving costs, by date. Defaults are the IRS standard business rates.</p>
+      <div class="table-wrap"><table><thead><tr><th>From</th><th>To</th><th>$ per mile</th><th></th></tr></thead><tbody>
+        ${rates.map((r, i) => `<tr data-rate="${S.data.rates.indexOf(r)}"><td><input class="input" type="date" data-k="from" value="${r.from}" aria-label="From"></td><td><input class="input" type="date" data-k="to" value="${r.to}" aria-label="To"></td><td><input class="input num" style="max-width:90px" inputmode="decimal" data-k="rate" value="${r.rate}" aria-label="Rate"></td><td><button class="btn small danger" data-delrate aria-label="Remove rate">Remove</button></td></tr>`).join('')}
+      </tbody></table></div>
+      <div class="actions"><button class="btn small" id="addRate">Add a rate</button></div>
+      <span class="hint">Changing a rate applies to sessions you log or re-date afterwards. Saved sessions keep their rate.</span>
+    </section>
+
+    <section>
+      <h2>Password</h2>
+      <form id="pwForm" style="display:grid;gap:10px;max-width:360px" novalidate>
+        <input class="input" type="password" id="pwOld" placeholder="Current password" autocomplete="current-password" aria-label="Current password">
+        <input class="input" type="password" id="pwNew" placeholder="New password (8+ characters)" autocomplete="new-password" aria-label="New password">
+        <div class="error" id="pwErr" role="alert" hidden></div>
+        <div class="actions"><button class="btn">Change password</button></div>
+      </form>
+    </section>
+
+    <section>
+      <h2>Sign out</h2>
+      <div class="actions"><button class="btn" id="signOut">Sign out</button><button class="btn danger" id="delAcc">Delete account</button></div>
+      <div id="delAccBox" class="confirm" hidden>
+        <span>Delete <b>${esc(S.user)}</b> and all ${S.data.sessions.length.toLocaleString()} sessions from this device? Export a backup first if you want to keep them.</span>
+        <div class="actions"><button class="btn danger solid small" id="delAccYes">Delete account</button><button class="btn small" id="delAccNo">Cancel</button></div>
+      </div>
+    </section>
+  </div>`;
+}
+function backupPayload() {
+  return JSON.stringify({ app: 'poker-ledger', v: 1, user: S.user, exported: new Date().toISOString(), data: S.data }, null, 1);
+}
+function bindSettings() {
+  $('#bExport').onclick = () => {
+    const txt = backupPayload();
+    try {
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(new Blob([txt], { type: 'application/json' }));
+      a.download = `poker-ledger-${S.user.replace(/\W+/g, '-')}-${todayISO()}.json`;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+    } catch {}
+    $('#bText').value = txt; $('#bCopyBox').hidden = false;
+    toast('Backup ready');
+  };
+  $('#bCopy').onclick = async () => {
+    const t = $('#bText');
+    try { await navigator.clipboard.writeText(t.value); toast('Copied'); } catch { t.focus(); t.select(); toast('Selected. Copy it with your keyboard.'); }
+  };
+  $('#bFile').onchange = async e => {
+    const f = e.target.files[0]; if (!f) return;
+    const box = $('#bImport');
+    let incoming;
+    try {
+      const j = JSON.parse(await f.text());
+      if (j.app !== 'poker-ledger' || !j.data) throw 0;
+      incoming = normalize(j.data);
+    } catch {
+      box.hidden = false; box.innerHTML = `<span class="error">That file isn’t a Poker Ledger backup. Choose a .json file exported from this app.</span>`; e.target.value = ''; return;
+    }
+    const have = new Set(S.data.sessions.map(s => s.id));
+    const fresh = incoming.sessions.filter(s => !have.has(s.id));
+    box.hidden = false;
+    box.innerHTML = `<span><b>${incoming.sessions.length.toLocaleString()}</b> sessions in this backup, ${fresh.length.toLocaleString()} not already here.</span>
+      <div class="actions">
+        <button class="btn primary small" id="impMerge" ${fresh.length ? '' : 'disabled'}>Add ${fresh.length.toLocaleString()} new sessions</button>
+        <button class="btn danger small" id="impReplace">Replace everything</button>
+        <button class="btn small" id="impNo">Cancel</button>
+      </div>`;
+    const done = async msg => { await persist(); toast(msg); e.target.value = ''; render(); };
+    $('#impNo').onclick = () => { box.hidden = true; e.target.value = ''; };
+    $('#impMerge').onclick = async () => {
+      S.data.sessions.push(...fresh);
+      incoming.venues.forEach(v => { if (!S.data.venues.some(x => x.name.toLowerCase() === v.name.toLowerCase())) S.data.venues.push(v); });
+      incoming.rates.forEach(r => { if (!S.data.rates.some(x => x.from === r.from && x.to === r.to)) S.data.rates.push(r); });
+      await done(`Added ${fresh.length} sessions`);
+    };
+    $('#impReplace').onclick = async () => { S.data = incoming; await done(`Restored ${incoming.sessions.length} sessions`); };
+  };
+  $$('[data-venue]').forEach(i => i.onchange = async () => {
+    const v = S.data.venues.find(x => x.name === i.dataset.venue); v.miles = num(i.value); await persist(); toast('Miles saved');
+  });
+  $$('tr[data-rate]').forEach(tr => {
+    const r = S.data.rates[+tr.dataset.rate];
+    $$('input', tr).forEach(i => i.onchange = async () => { r[i.dataset.k] = i.dataset.k === 'rate' ? num(i.value) : i.value; await persist(); toast('Rate saved'); });
+    $('[data-delrate]', tr).onclick = async () => { S.data.rates.splice(+tr.dataset.rate, 1); await persist(); render(); };
+  });
+  $('#addRate').onclick = async () => {
+    const y = new Date().getFullYear() + 1;
+    S.data.rates.push({ from: `${y}-01-01`, to: `${y}-12-31`, rate: rateFor(S.data.rates, todayISO()) });
+    await persist(); render();
+  };
+  $('#pwForm').onsubmit = async e => {
+    e.preventDefault(); const err = $('#pwErr'); err.hidden = true;
+    try {
+      const acc = accounts.all()[S.user.toLowerCase()];
+      try { await open(await deriveKey($('#pwOld').value, unb64(acc.salt), acc.iter), acc); } catch { throw new Error('Your current password is wrong.'); }
+      const np = $('#pwNew').value; if (np.length < 8) throw new Error('Use a new password of at least 8 characters.');
+      const salt = crypto.getRandomValues(new Uint8Array(16)); const key = await deriveKey(np, salt);
+      const all = accounts.all(); Object.assign(all[S.user.toLowerCase()], { salt: b64(salt), iter: ITER }); accounts.save(all);
+      S.key = key; await persist();
+      if (ls.get(REMEMBER_KEY) === S.user.toLowerCase()) await idb.put(S.user.toLowerCase(), key);
+      $('#pwOld').value = $('#pwNew').value = ''; toast('Password changed');
+    } catch (x) { err.textContent = x.message; err.hidden = false; }
+  };
+  $('#signOut').onclick = signOut;
+  $('#delAcc').onclick = () => { $('#delAccBox').hidden = false; };
+  $('#delAccNo').onclick = () => { $('#delAccBox').hidden = true; };
+  $('#delAccYes').onclick = async () => {
+    const all = accounts.all(); delete all[S.user.toLowerCase()]; accounts.save(all);
+    await signOut(); toast('Account deleted');
+  };
+}
+
+/* ---------- boot ---------- */
+let rz; addEventListener('resize', () => { clearTimeout(rz); rz = setTimeout(() => S.user && S.tab === 'dashboard' && drawCharts(), 150); });
+(async () => { await tryRemembered(); render(); })();
+if ('serviceWorker' in navigator && location.protocol === 'https:' && document.querySelector('link[rel="manifest"]')) {
+  navigator.serviceWorker.register('sw.js').catch(() => {});
+}
+})();
+</script>

@@ -1,0 +1,11 @@
+{
+  "name": "Poker Ledger",
+  "short_name": "Poker Ledger",
+  "description": "Track poker sessions, hourly rate and results. Data stays on your device.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f4f6f4",
+  "theme_color": "#1d5c45",
+  "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }]
+}
