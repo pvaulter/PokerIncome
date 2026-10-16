@@ -1,4 +1,4 @@
-<title>Poker Ledger</title>
+<title>Poker Income</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Figtree:wght@400;500;600&family=JetBrains+Mono:wght@500&display=swap">
@@ -79,6 +79,9 @@ textarea.input { min-height: 70px; resize: vertical; }
 .privacy { font-size: .85rem; color: var(--muted); display: grid; gap: 6px; }
 
 /* App chrome */
+.home-link { display: inline-block; font-size: .8rem; color: var(--muted); text-decoration: none; margin-bottom: 10px; }
+.home-link:hover { color: var(--ink); text-decoration: underline; }
+.auth-card .home-link { margin-bottom: -8px; }
 .top { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 18px; flex-wrap: wrap; }
 .top .who { font-size: .85rem; color: var(--muted); }
 .tabs { position: fixed; left: 0; right: 0; bottom: 0; z-index: 10; background: color-mix(in srgb, var(--surface) 92%, transparent); backdrop-filter: blur(10px); border-top: 1px solid var(--line);
@@ -347,8 +350,9 @@ function render() {
   const views = { dashboard: dashView, sessions: listView, log: logView, settings: settingsView };
   app.innerHTML = `
     <div class="wrap">
+      <a class="home-link" href="https://pokeroddspro.com/">← Poker Odds Pro</a>
       <div class="top">
-        <div class="brand">${ICON.chip}<b>Poker Ledger</b></div>
+        <div class="brand">${ICON.chip}<b>Poker Income</b></div>
         <div class="who">Signed in as <b>${esc(S.user)}</b></div>
       </div>
       <main id="view">${views[S.tab]()}</main>
@@ -369,7 +373,8 @@ function authView() {
   const names = Object.values(accounts.all()).map(a => a.name);
   const mode = authView.mode || (names.length ? 'in' : 'up');
   return `<div class="auth"><div class="auth-card">
-    <div class="brand">${ICON.chip}<b>Poker Ledger</b></div>
+    <a class="home-link" href="https://pokeroddspro.com/">← Poker Odds Pro</a>
+    <div class="brand">${ICON.chip}<b>Poker Income</b></div>
     <div>
       <h1>${mode === 'in' ? 'Sign in' : 'Create your account'}</h1>
       <p class="muted" style="margin:6px 0 0">Track every session, your hourly rate and where you win.</p>
@@ -814,7 +819,7 @@ function bindSettings() {
     try {
       const a = document.createElement('a');
       a.href = URL.createObjectURL(new Blob([txt], { type: 'application/json' }));
-      a.download = `poker-ledger-${S.user.replace(/\W+/g, '-')}-${todayISO()}.json`;
+      a.download = `poker-income-${S.user.replace(/\W+/g, '-')}-${todayISO()}.json`;
       document.body.appendChild(a); a.click(); a.remove();
       setTimeout(() => URL.revokeObjectURL(a.href), 4000);
     } catch {}
@@ -834,7 +839,7 @@ function bindSettings() {
       if (j.app !== 'poker-ledger' || !j.data) throw 0;
       incoming = normalize(j.data);
     } catch {
-      box.hidden = false; box.innerHTML = `<span class="error">That file isn’t a Poker Ledger backup. Choose a .json file exported from this app.</span>`; e.target.value = ''; return;
+      box.hidden = false; box.innerHTML = `<span class="error">That file isn’t a Poker Income backup. Choose a .json file exported from this app.</span>`; e.target.value = ''; return;
     }
     const have = new Set(S.data.sessions.map(s => s.id));
     const fresh = incoming.sessions.filter(s => !have.has(s.id));

@@ -1,4 +1,4 @@
-# Poker Ledger
+# Poker Income
 
 Track poker sessions: buy-in, cash out, hours, mileage at the IRS rate, net profit and hourly rate, with charts by venue, year and session length.
 
@@ -9,3 +9,7 @@ Each person signs up with a username and password on their own device. Sessions 
 - `docs/`: the site (with manifest and service worker for offline use and "Add to Home Screen")
 
 Build: `python3 tools/build.py`. Host: GitHub Pages from the `docs/` folder.
+
+## pokeroddspro.com
+
+The live app is served at https://pokeroddspro.com/poker-income/ from the PokerTrainer2 repo. After changing the app here, run `python3 tools/build.py` and copy `docs/*` into `PokerTrainer2/public/poker-income/`.

@@ -1,6 +1,6 @@
 {
-  "name": "Poker Ledger",
-  "short_name": "Poker Ledger",
+  "name": "Poker Income",
+  "short_name": "Poker Income",
   "description": "Track poker sessions, hourly rate and results. Data stays on your device.",
   "start_url": "./",
   "scope": "./",
