@@ -340,8 +340,22 @@ async function signOut() {
   if (S.user) await idb.del(S.user.toLowerCase());
   ls.del(REMEMBER_KEY);
   Object.assign(S, { user: null, key: null, data: null });
-  if (SITE_SIGNIN) { location.assign('/'); return; }
+  if (SITE_SIGNIN) {
+    ls.del(SITE_MEMBER_KEY);
+    await fetch('/api/logout', { method: 'POST' }).catch(() => {});
+    location.assign('/'); return;
+  }
   render();
+}
+// On pokeroddspro.com the site's server holds the account; if it has ended the sign-in, sign out here too.
+// Offline or on a server error, stay signed in.
+const SITE_MEMBER_KEY = 'pokerOddsPro.member';
+async function checkSiteSignIn() {
+  if (!SITE_SIGNIN || !S.user) return;
+  try {
+    const res = await fetch('/api/me', { cache: 'no-store' });
+    if (res.status === 401) await signOut();
+  } catch {}
 }
 async function tryRemembered() {
   const who = ls.get(REMEMBER_KEY); if (!who) return false;
@@ -914,7 +928,7 @@ function bindSettings() {
 
 /* ---------- boot ---------- */
 let rz; addEventListener('resize', () => { clearTimeout(rz); rz = setTimeout(() => S.user && S.tab === 'dashboard' && drawCharts(), 150); });
-(async () => { await tryRemembered(); render(); })();
+(async () => { await tryRemembered(); render(); checkSiteSignIn(); })();
 if ('serviceWorker' in navigator && location.protocol === 'https:' && document.querySelector('link[rel="manifest"]')) {
   navigator.serviceWorker.register('sw.js').catch(() => {});
 }
