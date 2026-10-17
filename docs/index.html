@@ -204,6 +204,8 @@ function toast(msg) {
 }
 
 /* ---------- storage (everything stays in this browser) ---------- */
+// On pokeroddspro.com the site's own sign-in page handles accounts (same storage), set by build.py --site.
+const SITE_SIGNIN = document.querySelector('meta[name="site-signin"]')?.content || '';
 const ACC_KEY = 'pokerLedger.accounts.v1';
 const REMEMBER_KEY = 'pokerLedger.remembered';
 const ls = {
@@ -338,7 +340,22 @@ async function signOut() {
   if (S.user) await idb.del(S.user.toLowerCase());
   ls.del(REMEMBER_KEY);
   Object.assign(S, { user: null, key: null, data: null });
+  if (SITE_SIGNIN) {
+    ls.del(SITE_MEMBER_KEY);
+    await fetch('/api/logout', { method: 'POST' }).catch(() => {});
+    location.assign('/'); return;
+  }
   render();
+}
+// On pokeroddspro.com the site's server holds the account; if it has ended the sign-in, sign out here too.
+// Offline or on a server error, stay signed in.
+const SITE_MEMBER_KEY = 'pokerOddsPro.member';
+async function checkSiteSignIn() {
+  if (!SITE_SIGNIN || !S.user) return;
+  try {
+    const res = await fetch('/api/me', { cache: 'no-store' });
+    if (res.status === 401) await signOut();
+  } catch {}
 }
 async function tryRemembered() {
   const who = ls.get(REMEMBER_KEY); if (!who) return false;
@@ -359,6 +376,7 @@ const ICON = {
 
 function render() {
   const app = $('#app');
+  if (!S.user && SITE_SIGNIN) { location.replace(`${SITE_SIGNIN}?next=${encodeURIComponent(location.pathname)}`); return; }
   if (!S.user) { app.innerHTML = authView(); bindAuth(); return; }
   const views = { dashboard: dashView, sessions: listView, log: logView, settings: settingsView };
   app.innerHTML = `
@@ -910,7 +928,7 @@ function bindSettings() {
 
 /* ---------- boot ---------- */
 let rz; addEventListener('resize', () => { clearTimeout(rz); rz = setTimeout(() => S.user && S.tab === 'dashboard' && drawCharts(), 150); });
-(async () => { await tryRemembered(); render(); })();
+(async () => { await tryRemembered(); render(); checkSiteSignIn(); })();
 if ('serviceWorker' in navigator && location.protocol === 'https:' && document.querySelector('link[rel="manifest"]')) {
   navigator.serviceWorker.register('sw.js').catch(() => {});
 }

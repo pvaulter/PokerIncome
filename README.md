@@ -12,4 +12,4 @@ Build: `python3 tools/build.py`. Host: GitHub Pages from the `docs/` folder.
 
 ## pokeroddspro.com
 
-The live app is served at https://pokeroddspro.com/poker-income/ from the PokerTrainer2 repo. After changing the app here, run `python3 tools/build.py` and copy `docs/*` into `PokerTrainer2/public/poker-income/`.
+The live app is served at https://pokeroddspro.com/poker-income/ from the PokerTrainer2 repo. After changing the app here, run `python3 tools/build.py --site ../PokerTrainer2/public/poker-income`. That copy uses the site's `/sign-in` page (one account for the whole site) instead of its own sign-in form.
