@@ -204,6 +204,8 @@ function toast(msg) {
 }
 
 /* ---------- storage (everything stays in this browser) ---------- */
+// On pokeroddspro.com the site's own sign-in page handles accounts (same storage), set by build.py --site.
+const SITE_SIGNIN = document.querySelector('meta[name="site-signin"]')?.content || '';
 const ACC_KEY = 'pokerLedger.accounts.v1';
 const REMEMBER_KEY = 'pokerLedger.remembered';
 const ls = {
@@ -338,6 +340,7 @@ async function signOut() {
   if (S.user) await idb.del(S.user.toLowerCase());
   ls.del(REMEMBER_KEY);
   Object.assign(S, { user: null, key: null, data: null });
+  if (SITE_SIGNIN) { location.assign('/'); return; }
   render();
 }
 async function tryRemembered() {
@@ -359,6 +362,7 @@ const ICON = {
 
 function render() {
   const app = $('#app');
+  if (!S.user && SITE_SIGNIN) { location.replace(`${SITE_SIGNIN}?next=${encodeURIComponent(location.pathname)}`); return; }
   if (!S.user) { app.innerHTML = authView(); bindAuth(); return; }
   const views = { dashboard: dashView, sessions: listView, log: logView, settings: settingsView };
   app.innerHTML = `

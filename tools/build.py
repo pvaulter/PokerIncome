@@ -1,5 +1,9 @@
-"""Wrap src/app.html into a standalone docs/index.html for GitHub Pages."""
-import pathlib
+"""Wrap src/app.html into a standalone docs/index.html for GitHub Pages.
+
+python3 tools/build.py --site DIR  also writes a copy for pokeroddspro.com into DIR
+(PokerTrainer2/public/poker-income), which uses the site's /sign-in page instead of its own.
+"""
+import pathlib, shutil, sys
 root = pathlib.Path(__file__).resolve().parent.parent
 body = (root / 'src/app.html').read_text()
 head = '''<!doctype html>
@@ -19,3 +23,12 @@ split = body.index('<div id="app">')
 out = head + body[:split] + '</head>\n<body>\n' + body[split:] + '\n</body>\n</html>\n'
 (root / 'docs/index.html').write_text(out)
 print('wrote docs/index.html', len(out))
+
+if '--site' in sys.argv:
+    dest = pathlib.Path(sys.argv[sys.argv.index('--site') + 1])
+    dest.mkdir(parents=True, exist_ok=True)
+    for f in (root / 'docs').iterdir():
+        if f.name != 'index.html': shutil.copy(f, dest / f.name)
+    site = out.replace('<link rel="manifest"', '<meta name="site-signin" content="/sign-in">\n<link rel="manifest"', 1)
+    (dest / 'index.html').write_text(site)
+    print('wrote', dest / 'index.html')
