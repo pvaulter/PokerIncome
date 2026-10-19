@@ -773,7 +773,7 @@ function logView() {
         <label class="field"><span>Round-trip miles</span><input class="input num" id="fMiles" inputmode="decimal" value="${v(s.miles)}" placeholder="0"></label>
         <label class="field"><span>Tips &amp; drinks ($)</span><input class="input num" id="fTips" inputmode="decimal" value="${v(s.tips)}" placeholder="0"></label>
       </div>
-      <span class="hint">Miles fill in from the venue and are charged at the IRS rate for the date. Tips are recorded but not subtracted, since they come out of your stack.</span>
+      <span class="hint">Mileage to and from the venue is tax deductible. Assign mileage per venue in Account, and it will fill in automatically the next time you enter that venue.</span>
     </fieldset>
     <label class="field"><span>Notes</span><textarea class="input" id="fNotes" placeholder="How did it go?">${esc(s.notes)}</textarea></label>
     <div class="preview" id="pv" aria-live="polite"></div>
