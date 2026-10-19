@@ -779,7 +779,7 @@ function logView() {
         <label class="field"><span>Cash out ($)</span><input class="input num" id="fOut" inputmode="decimal" value="${v(s.cashOut)}" placeholder="0"></label>
       </div>
       <div class="grid2">
-        <label class="field"><span>Hours played</span><input class="input num" id="fHours" inputmode="decimal" value="${v(s.hours)}" placeholder="4.5"></label>
+        <label class="field"><span>Hours played</span><select class="input" id="fHours">${hourOpts(s.hours)}</select></label>
         <label class="field"><span>Other expenses ($)</span><input class="input num" id="fExp" inputmode="decimal" value="${v(s.expenses)}" placeholder="Food, parking"></label>
       </div>
       <div class="grid2">
@@ -813,6 +813,12 @@ function pickOpts(list, value, noun) {
   const hit = list.find(x => x.toLowerCase() === String(value || '').toLowerCase());
   return list.map(x => `<option value="${esc(x)}" ${x === hit ? 'selected' : ''}>${esc(x)}</option>`).join('') +
     `<option value="" ${hit ? '' : 'selected'}>＋ New ${noun}…</option>`;
+}
+// 1 to 12 hours; a saved session with other hours (say 4.5) keeps its own value in the list.
+function hourOpts(h) {
+  const list = [...new Set([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, ...(h > 0 ? [num(h)] : [])])].sort((a, b) => a - b);
+  return `<option value="" ${h > 0 ? '' : 'selected'}>Choose</option>` +
+    list.map(x => `<option value="${x}" ${x === num(h) ? 'selected' : ''}>${x} ${x === 1 ? 'hour' : 'hours'}</option>`).join('');
 }
 function readForm() {
   return normSession({
