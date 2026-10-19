@@ -751,8 +751,8 @@ function logView() {
   // A first session defaults to the first saved venue, so the list starts on a real choice.
   const firstVenue = !last && [...S.data.venues].sort((a, b) => a.name.localeCompare(b.name))[0];
   const s = ed || { date: todayISO(), venue: last?.venue || firstVenue?.name || '', type: last?.type || 'Cash', stakes: last?.stakes || '', buyIn: '', cashOut: '', hours: '', expenses: '', tips: '', miles: last ? last.miles : firstVenue?.miles || '', notes: '' };
-  const venues = [...new Set([...S.data.venues.map(v => v.name), s.venue].filter(Boolean))].sort((a, b) => a.localeCompare(b));
-  const stakes = [...new Set(S.data.sessions.map(x => x.stakes).filter(Boolean))].sort();
+  // Choices come from this member's saved venues and past sessions.
+  const venues = uniq([...S.data.venues.map(v => v.name), ...S.data.sessions.map(x => x.venue), s.venue]);
   const v = x => (x === '' || x == null || (x === 0 && !ed) ? '' : x);
   return `<form class="form" id="logForm" novalidate>
     <div style="display:grid;gap:4px"><h1>${ed ? 'Edit session' : 'Log a session'}</h1>
@@ -765,11 +765,12 @@ function logView() {
       </div>
       <div class="grid2">
         <div class="field"><label for="fVenueSel">Venue</label>
-          <select class="input" id="fVenueSel">${venues.map(x => `<option value="${esc(x)}" ${x === s.venue ? 'selected' : ''}>${esc(x)}</option>`).join('')}<option value="" ${s.venue ? '' : 'selected'}>＋ New venue…</option></select>
+          <select class="input" id="fVenueSel">${pickOpts(venues, s.venue, 'venue')}</select>
           <input class="input" id="fVenue" value="${esc(s.venue)}" placeholder="New venue name" autocomplete="off" aria-label="New venue name" ${s.venue ? 'hidden' : ''}></div>
-        <label class="field"><span id="stakesLab">${s.type === 'Tournament' ? 'Event' : 'Stakes'}</span><input class="input" id="fStakes" list="stakesList" value="${esc(s.stakes)}" placeholder="${s.type === 'Tournament' ? '$150 Deepstack' : '1/3'}" autocomplete="off"></label>
+        <div class="field"><label for="fStakesSel" id="stakesLab">${s.type === 'Tournament' ? 'Event' : 'Stakes'}</label>
+          <select class="input" id="fStakesSel">${pickOpts(stakesFor(s.type, s.stakes), s.stakes, s.type === 'Tournament' ? 'event' : 'stakes')}</select>
+          <input class="input" id="fStakes" value="${esc(s.stakes)}" placeholder="${s.type === 'Tournament' ? '$150 Deepstack' : '1/3'}" autocomplete="off" aria-label="New ${s.type === 'Tournament' ? 'event' : 'stakes'}" ${s.stakes ? 'hidden' : ''}></div>
       </div>
-      <datalist id="stakesList">${stakes.map(x => `<option value="${esc(x)}">`).join('')}</datalist>
     </fieldset>
     <fieldset>
       <legend class="label">Money</legend>
@@ -800,6 +801,19 @@ function logView() {
     </div>
   </form>`;
 }
+// Names without repeats (ignoring case), A to Z.
+function uniq(list) {
+  const m = new Map();
+  list.map(x => String(x || '').trim()).filter(Boolean).forEach(x => m.has(x.toLowerCase()) || m.set(x.toLowerCase(), x));
+  return [...m.values()].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+}
+// Stakes played before in cash games, or events played in tournaments.
+const stakesFor = (type, current) => uniq([...S.data.sessions.filter(x => x.type === type).map(x => x.stakes), current]);
+function pickOpts(list, value, noun) {
+  const hit = list.find(x => x.toLowerCase() === String(value || '').toLowerCase());
+  return list.map(x => `<option value="${esc(x)}" ${x === hit ? 'selected' : ''}>${esc(x)}</option>`).join('') +
+    `<option value="" ${hit ? '' : 'selected'}>＋ New ${noun}…</option>`;
+}
 function readForm() {
   return normSession({
     id: S.editing || undefined, date: $('#fDate').value, venue: $('#fVenue').value, type: $('#fType').value, stakes: $('#fStakes').value,
@@ -820,7 +834,21 @@ function bindLog() {
       <div class="line total"><span>Net profit${c.hourly != null ? ` · ${money(c.hourly, true)}/h` : ''}</span><span class="num ${cls(c.net)}">${money(c.net, true)}</span></div>`;
   };
   $$('#logForm input, #logForm select, #logForm textarea').forEach(i => i.addEventListener('input', upd));
-  $('#fType').addEventListener('change', () => { const t = $('#fType').value === 'Tournament'; $('#stakesLab').textContent = t ? 'Event' : 'Stakes'; $('#fStakes').placeholder = t ? '$150 Deepstack' : '1/3'; });
+  $('#fType').addEventListener('change', () => {
+    const type = $('#fType').value, t = type === 'Tournament', box = $('#fStakes');
+    $('#stakesLab').textContent = t ? 'Event' : 'Stakes'; box.placeholder = t ? '$150 Deepstack' : '1/3';
+    box.setAttribute('aria-label', t ? 'New event' : 'New stakes');
+    // Show the stakes or events played in this kind of game; start on the most recent one.
+    const recent = [...S.data.sessions].sort((a, b) => b.date.localeCompare(a.date)).find(x => x.type === type && x.stakes);
+    const list = stakesFor(type), pick = recent ? recent.stakes : list[0] || '';
+    $('#fStakesSel').innerHTML = pickOpts(list, pick, t ? 'event' : 'stakes');
+    box.value = $('#fStakesSel').value; box.hidden = !!box.value;
+  });
+  $('#fStakesSel').addEventListener('change', () => {
+    const pick = $('#fStakesSel').value, box = $('#fStakes');
+    box.value = pick; box.hidden = !!pick;
+    if (!pick) box.focus();
+  });
   $('#fVenueSel').addEventListener('change', () => {
     const pick = $('#fVenueSel').value, box = $('#fVenue');
     box.value = pick; box.hidden = !!pick;
@@ -892,7 +920,7 @@ function settingsView() {
         <input class="input num" id="nvMiles" inputmode="decimal" placeholder="Miles" aria-label="Round-trip miles" style="max-width:110px">
         <button class="btn small">Add venue</button>
       </form>
-      <span class="hint">Renaming a venue also renames it in your past sessions. Removing one takes it off this list and the Log form; past sessions keep it.</span>
+      <span class="hint">Renaming a venue also renames it in your past sessions. Removing one takes it off this list; the Log form still offers venues from your past sessions.</span>
     </section>
 
     <section>
