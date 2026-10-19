@@ -849,6 +849,15 @@ function bindLog() {
     if (known) { $('#fMiles').value = known.miles || ''; upd(); }
   });
   upd();
+  // Return moves to the next field, as on a phone keyboard; only the Save button saves.
+  const fields = () => $$('#logForm input, #logForm select, #logForm textarea').filter(f => !f.hidden && f.type !== 'hidden');
+  fields().forEach(f => f.tagName === 'INPUT' && f.setAttribute('enterkeyhint', 'next'));
+  $('#logForm').addEventListener('keydown', e => {
+    if (e.key !== 'Enter' || e.isComposing || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'BUTTON') return;
+    e.preventDefault();
+    const list = fields(), next = list[list.indexOf(e.target) + 1];
+    if (next) next.focus(); else $('#fSave').focus();
+  });
   $('#logForm').onsubmit = async e => {
     e.preventDefault();
     const s = readForm(), err = $('#ferr'); err.hidden = true;
