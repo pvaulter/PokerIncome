@@ -46,7 +46,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .label { font-size: .72rem; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); font-weight: 600; }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
-.wrap { max-width: 960px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 20px 110px; }
+.wrap { max-width: 960px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 20px 48px; }
 
 /* Buttons & fields */
 .btn { appearance: none; border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: 10px 18px; font-weight: 600; cursor: pointer; }
@@ -57,13 +57,14 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .btn.block { width: 100%; }
 .btn.small { padding: 6px 12px; font-size: .85rem; }
 .field { display: grid; gap: 6px; min-width: 0; }
-.field > span { font-size: .8rem; font-weight: 600; color: var(--muted); }
+.field > span, .field > label { font-size: .8rem; font-weight: 600; color: var(--muted); }
+.input[hidden] { display: none; }
 .input { width: 100%; border: 1px solid var(--line); background: var(--surface); border-radius: 8px; padding: 11px 12px; min-width: 0; }
 .input:focus { border-color: var(--accent); outline: none; box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 25%, transparent); }
 textarea.input { min-height: 70px; resize: vertical; }
 .hint { font-size: .8rem; color: var(--muted); }
 .error { color: var(--loss); font-size: .88rem; font-weight: 500; }
-.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-items: start; }
 .seg { display: inline-flex; background: var(--sunken); border-radius: 999px; padding: 3px; gap: 2px; }
 .seg button { border: 0; background: transparent; padding: 7px 14px; border-radius: 999px; cursor: pointer; font-weight: 600; font-size: .88rem; color: var(--muted); }
 .seg button[aria-pressed="true"] { background: var(--surface); color: var(--ink); box-shadow: 0 1px 2px rgb(0 0 0 / .12); }
@@ -83,9 +84,11 @@ textarea.input { min-height: 70px; resize: vertical; }
 .home-link:hover { color: var(--ink); text-decoration: underline; }
 .auth-card .home-link { margin-bottom: -8px; }
 .top { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 18px; flex-wrap: wrap; }
+.wrap.head { padding-block: 16px 0; }
+.wrap.head .top { margin-bottom: 12px; }
 .top .who { font-size: .85rem; color: var(--muted); }
-.tabs { position: fixed; left: 0; right: 0; bottom: 0; z-index: 10; background: color-mix(in srgb, var(--surface) 92%, transparent); backdrop-filter: blur(10px); border-top: 1px solid var(--line);
-  padding-bottom: env(safe-area-inset-bottom, 0px); padding-left: max(8px, env(safe-area-inset-left, 0px)); padding-right: max(8px, env(safe-area-inset-right, 0px)); }
+.tabs { position: sticky; top: 0; z-index: 10; background: color-mix(in srgb, var(--surface) 92%, transparent); backdrop-filter: blur(10px); border-bottom: 1px solid var(--line);
+  padding-top: env(safe-area-inset-top, 0px); padding-left: max(8px, env(safe-area-inset-left, 0px)); padding-right: max(8px, env(safe-area-inset-right, 0px)); }
 .tabs nav { max-width: 560px; margin: 0 auto; display: grid; grid-template-columns: repeat(4, 1fr); }
 .tabs button { border: 0; background: none; padding: 10px 4px 12px; display: grid; justify-items: center; gap: 3px; font-size: .74rem; font-weight: 600; color: var(--muted); cursor: pointer; }
 .tabs button svg { width: 22px; height: 22px; }
@@ -367,20 +370,20 @@ function render() {
   if (!S.user) { app.innerHTML = authView(); bindAuth(); return; }
   const views = { dashboard: dashView, sessions: listView, log: logView, settings: settingsView };
   app.innerHTML = `
-    <div class="wrap">
+    <div class="wrap head">
       <a class="home-link" href="https://pokeroddspro.com/">← Poker Odds Pro</a>
       <div class="top">
         <div class="brand">${ICON.chip}<b>Poker Income</b></div>
         <div class="who">Signed in as <b>${esc(S.user)}</b></div>
       </div>
-      <main id="view">${views[S.tab]()}</main>
     </div>
     <div class="tabs"><nav aria-label="Sections">
       ${tabBtn('dashboard', 'Results', ICON.dash)}
       ${tabBtn('sessions', 'Sessions', ICON.list)}
       <button class="log-btn" data-tab="log" ${S.tab === 'log' ? 'aria-current="page"' : ''}><span class="pill">${ICON.plus}</span>Log</button>
       ${tabBtn('settings', 'Account', ICON.gear)}
-    </nav></div>`;
+    </nav></div>
+    <div class="wrap"><main id="view">${views[S.tab]()}</main></div>`;
   $$('.tabs [data-tab]').forEach(b => b.onclick = () => { S.tab = b.dataset.tab; if (S.tab === 'log') S.editing = null; render(); scrollTo(0, 0); });
   ({ dashboard: bindDash, sessions: bindList, log: bindLog, settings: bindSettings })[S.tab]();
 }
@@ -666,8 +669,10 @@ function bindList() {
 function logView() {
   const ed = S.editing && S.data.sessions.find(s => s.id === S.editing);
   const last = [...S.data.sessions].sort((a, b) => b.date.localeCompare(a.date))[0];
-  const s = ed || { date: todayISO(), venue: last?.venue || '', type: last?.type || 'Cash', stakes: last?.stakes || '', buyIn: '', cashOut: '', hours: '', expenses: '', tips: '', miles: last ? last.miles : '', notes: '' };
-  const venues = [...new Set([...S.data.venues.map(v => v.name), ...S.data.sessions.map(x => x.venue)].filter(Boolean))].sort();
+  // A first session defaults to the first saved venue, so the list starts on a real choice.
+  const firstVenue = !last && [...S.data.venues].sort((a, b) => a.name.localeCompare(b.name))[0];
+  const s = ed || { date: todayISO(), venue: last?.venue || firstVenue?.name || '', type: last?.type || 'Cash', stakes: last?.stakes || '', buyIn: '', cashOut: '', hours: '', expenses: '', tips: '', miles: last ? last.miles : firstVenue?.miles || '', notes: '' };
+  const venues = [...new Set([...S.data.venues.map(v => v.name), s.venue].filter(Boolean))].sort((a, b) => a.localeCompare(b));
   const stakes = [...new Set(S.data.sessions.map(x => x.stakes).filter(Boolean))].sort();
   const v = x => (x === '' || x == null || (x === 0 && !ed) ? '' : x);
   return `<form class="form" id="logForm" novalidate>
@@ -680,10 +685,11 @@ function logView() {
           <select class="input" id="fType"><option ${s.type === 'Cash' ? 'selected' : ''} value="Cash">Cash game</option><option ${s.type === 'Tournament' ? 'selected' : ''} value="Tournament">Tournament</option></select></label>
       </div>
       <div class="grid2">
-        <label class="field"><span>Venue</span><input class="input" id="fVenue" list="venueList" value="${esc(s.venue)}" placeholder="Red Rock" autocomplete="off"></label>
+        <div class="field"><label for="fVenueSel">Venue</label>
+          <select class="input" id="fVenueSel">${venues.map(x => `<option value="${esc(x)}" ${x === s.venue ? 'selected' : ''}>${esc(x)}</option>`).join('')}<option value="" ${s.venue ? '' : 'selected'}>＋ New venue…</option></select>
+          <input class="input" id="fVenue" value="${esc(s.venue)}" placeholder="New venue name" autocomplete="off" aria-label="New venue name" ${s.venue ? 'hidden' : ''}></div>
         <label class="field"><span id="stakesLab">${s.type === 'Tournament' ? 'Event' : 'Stakes'}</span><input class="input" id="fStakes" list="stakesList" value="${esc(s.stakes)}" placeholder="${s.type === 'Tournament' ? '$150 Deepstack' : '1/3'}" autocomplete="off"></label>
       </div>
-      <datalist id="venueList">${venues.map(x => `<option value="${esc(x)}">`).join('')}</datalist>
       <datalist id="stakesList">${stakes.map(x => `<option value="${esc(x)}">`).join('')}</datalist>
     </fieldset>
     <fieldset>
@@ -736,6 +742,12 @@ function bindLog() {
   };
   $$('#logForm input, #logForm select, #logForm textarea').forEach(i => i.addEventListener('input', upd));
   $('#fType').addEventListener('change', () => { const t = $('#fType').value === 'Tournament'; $('#stakesLab').textContent = t ? 'Event' : 'Stakes'; $('#fStakes').placeholder = t ? '$150 Deepstack' : '1/3'; });
+  $('#fVenueSel').addEventListener('change', () => {
+    const pick = $('#fVenueSel').value, box = $('#fVenue');
+    box.value = pick; box.hidden = !!pick;
+    if (pick) box.dispatchEvent(new Event('change'));
+    else { $('#fMiles').value = ''; upd(); box.focus(); }
+  });
   $('#fVenue').addEventListener('change', () => {
     const name = $('#fVenue').value.trim().toLowerCase();
     const known = S.data.venues.find(v => v.name.toLowerCase() === name) ||
@@ -793,9 +805,15 @@ function settingsView() {
     <section>
       <h2>Venues</h2>
       <p class="muted" style="margin:0">Round-trip miles fill in automatically when you log a session at that venue.</p>
-      ${venues.length ? `<div class="table-wrap"><table><thead><tr><th>Venue</th><th>Round-trip miles</th></tr></thead><tbody>
-        ${venues.map((v, i) => `<tr><td>${esc(v.name)}</td><td><input class="input num" style="max-width:110px" inputmode="decimal" data-venue="${esc(v.name)}" value="${v.miles || ''}" aria-label="Miles for ${esc(v.name)}"></td></tr>`).join('')}
-      </tbody></table></div>` : `<p class="hint" style="margin:0">Venues appear here after you log a session.</p>`}
+      ${venues.length ? `<div class="table-wrap"><table><thead><tr><th>Venue</th><th>Miles</th><th></th></tr></thead><tbody>
+        ${venues.map(v => `<tr data-venue="${S.data.venues.indexOf(v)}"><td><input class="input" style="min-width:120px" data-k="name" value="${esc(v.name)}" aria-label="Venue name"></td><td><input class="input num" style="max-width:72px" inputmode="decimal" data-k="miles" value="${v.miles || ''}" aria-label="Miles for ${esc(v.name)}"></td><td><button class="btn small danger" data-delvenue aria-label="Remove ${esc(v.name)}">Remove</button></td></tr>`).join('')}
+      </tbody></table></div>` : `<p class="hint" style="margin:0">No venues yet. Add the places you play.</p>`}
+      <form id="addVenue" class="actions" novalidate>
+        <input class="input" id="nvName" placeholder="New venue, e.g. Red Rock" aria-label="New venue name" style="flex:1 1 180px;width:auto">
+        <input class="input num" id="nvMiles" inputmode="decimal" placeholder="Miles" aria-label="Round-trip miles" style="max-width:110px">
+        <button class="btn small">Add venue</button>
+      </form>
+      <span class="hint">Renaming a venue also renames it in your past sessions. Removing one takes it off this list and the Log form; past sessions keep it.</span>
     </section>
 
     <section>
@@ -878,9 +896,25 @@ function bindSettings() {
     };
     $('#impReplace').onclick = async () => { S.data = incoming; await done(`Restored ${incoming.sessions.length} sessions`); };
   };
-  $$('[data-venue]').forEach(i => i.onchange = async () => {
-    const v = S.data.venues.find(x => x.name === i.dataset.venue); v.miles = num(i.value); await persist(); toast('Miles saved');
+  const venueTaken = (name, except) => S.data.venues.some(x => x !== except && x.name.toLowerCase() === name.toLowerCase());
+  $$('tr[data-venue]').forEach(tr => {
+    const v = S.data.venues[+tr.dataset.venue];
+    $('[data-k="miles"]', tr).onchange = async e => { v.miles = num(e.target.value); await persist(); toast('Miles saved'); };
+    $('[data-k="name"]', tr).onchange = async e => {
+      const name = e.target.value.trim();
+      if (!name || venueTaken(name, v)) { e.target.value = v.name; toast(name ? 'You already have a venue with that name' : 'A venue needs a name'); return; }
+      S.data.sessions.forEach(x => { if (x.venue === v.name) x.venue = name; });
+      v.name = name; await persist(); toast('Venue renamed'); render();
+    };
+    $('[data-delvenue]', tr).onclick = async () => { S.data.venues.splice(+tr.dataset.venue, 1); await persist(); toast('Venue removed'); render(); };
   });
+  $('#addVenue').onsubmit = async e => {
+    e.preventDefault();
+    const name = $('#nvName').value.trim();
+    if (!name) { $('#nvName').focus(); return; }
+    if (venueTaken(name)) { toast('You already have a venue with that name'); return; }
+    S.data.venues.push({ name, miles: num($('#nvMiles').value) }); await persist(); toast('Venue added'); render();
+  };
   $$('tr[data-rate]').forEach(tr => {
     const r = S.data.rates[+tr.dataset.rate];
     $$('input', tr).forEach(i => i.onchange = async () => { r[i.dataset.k] = i.dataset.k === 'rate' ? num(i.value) : i.value; await persist(); toast('Rate saved'); });
