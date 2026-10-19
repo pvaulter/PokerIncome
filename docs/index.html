@@ -262,7 +262,8 @@ async function open(key, { iv, ct }) {
 }
 
 /* ---------- data model ---------- */
-// IRS standard mileage rates (business), editable in Settings.
+// IRS standard mileage rates (business). On the site they come from the server's shared table, which only the
+// site owner changes; these are the fallback until it answers.
 const DEFAULT_RATES = [
   { from: '2021-01-01', to: '2021-12-31', rate: 0.56 },
   { from: '2022-01-01', to: '2022-06-30', rate: 0.585 },
@@ -332,8 +333,8 @@ function pushServer() {
     try {
       do {
         pushAgain = false;
-        const { sessions, venues, rates } = S.data;
-        const res = await fetch('/api/income', { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ sessions, venues, rates }) });
+        const { sessions, venues } = S.data;
+        const res = await fetch('/api/income', { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ sessions, venues }) });
         if (res.status === 401) { await signOut(); return; }
         if (!res.ok) return;
       } while (pushAgain && S.user);
@@ -365,7 +366,10 @@ async function loadServer() {
     body = await res.json();
   } catch { return; }
   if (!S.user || S.user.toLowerCase() !== who) return;
-  if (!body.saved) return pushServer();
+  if (!body.saved) {
+    if (Array.isArray(body.rates) && body.rates.length) { S.data.rates = normalize({ rates: body.rates }).rates; await saveLocal(); }
+    return pushServer();
+  }
   const server = normalize(body.data);
   const firstSync = !ls.get(SYNCED_KEY + who);
   const data = firstSync ? mergeData(server, S.data) : server;
@@ -940,12 +944,10 @@ function settingsView() {
 
     <section>
       <h2>Mileage rates</h2>
-      <p class="muted" style="margin:0">Dollars per mile used for driving costs, by date. Defaults are the IRS standard business rates.</p>
-      <div class="table-wrap"><table><thead><tr><th>From</th><th>To</th><th>$ per mile</th><th></th></tr></thead><tbody>
-        ${rates.map((r, i) => `<tr data-rate="${S.data.rates.indexOf(r)}"><td><input class="input" type="date" data-k="from" value="${r.from}" aria-label="From"></td><td><input class="input" type="date" data-k="to" value="${r.to}" aria-label="To"></td><td><input class="input num" style="max-width:90px" inputmode="decimal" data-k="rate" value="${r.rate}" aria-label="Rate"></td><td><button class="btn small danger" data-delrate aria-label="Remove rate">Remove</button></td></tr>`).join('')}
+      <p class="muted" style="margin:0">The IRS standard business rate per mile, by date. These are the same for every member.</p>
+      <div class="table-wrap"><table><thead><tr><th>From</th><th>To</th><th class="num">$ per mile</th></tr></thead><tbody>
+        ${rates.map(r => `<tr><td>${esc(r.from)}</td><td>${esc(r.to)}</td><td class="num">${r.rate}</td></tr>`).join('')}
       </tbody></table></div>
-      <div class="actions"><button class="btn small" id="addRate">Add a rate</button></div>
-      <span class="hint">Changing a rate applies to sessions you log or re-date afterwards. Saved sessions keep their rate.</span>
     </section>
 
     <section>
@@ -1013,10 +1015,9 @@ function bindSettings() {
     $('#impMerge').onclick = async () => {
       S.data.sessions.push(...fresh);
       incoming.venues.forEach(v => { if (!S.data.venues.some(x => x.name.toLowerCase() === v.name.toLowerCase())) S.data.venues.push(v); });
-      incoming.rates.forEach(r => { if (!S.data.rates.some(x => x.from === r.from && x.to === r.to)) S.data.rates.push(r); });
       await done(`Added ${fresh.length} sessions`);
     };
-    $('#impReplace').onclick = async () => { S.data = incoming; await done(`Restored ${incoming.sessions.length} sessions`); };
+    $('#impReplace').onclick = async () => { S.data = { ...incoming, rates: S.data.rates }; await done(`Restored ${incoming.sessions.length} sessions`); };
   };
   const venueTaken = (name, except) => S.data.venues.some(x => x !== except && x.name.toLowerCase() === name.toLowerCase());
   $$('tr[data-venue]').forEach(tr => {
@@ -1036,16 +1037,6 @@ function bindSettings() {
     if (!name) { $('#nvName').focus(); return; }
     if (venueTaken(name)) { toast('You already have a venue with that name'); return; }
     S.data.venues.push({ name, miles: num($('#nvMiles').value) }); await persist(); toast('Venue added'); render();
-  };
-  $$('tr[data-rate]').forEach(tr => {
-    const r = S.data.rates[+tr.dataset.rate];
-    $$('input', tr).forEach(i => i.onchange = async () => { r[i.dataset.k] = i.dataset.k === 'rate' ? num(i.value) : i.value; await persist(); toast('Rate saved'); });
-    $('[data-delrate]', tr).onclick = async () => { S.data.rates.splice(+tr.dataset.rate, 1); await persist(); render(); };
-  });
-  $('#addRate').onclick = async () => {
-    const y = new Date().getFullYear() + 1;
-    S.data.rates.push({ from: `${y}-01-01`, to: `${y}-12-31`, rate: rateFor(S.data.rates, todayISO()) });
-    await persist(); render();
   };
   $('#pwForm').onsubmit = async e => {
     e.preventDefault(); const err = $('#pwErr'); err.hidden = true;
