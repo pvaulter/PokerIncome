@@ -1,5 +1,5 @@
 // Offline support: the page loads from the network when it can, everything else from cache, refreshed in the background.
-const CACHE = 'poker-income-v11';
+const CACHE = 'poker-income-v12';
 const SHELL = ['./', 'index.html', 'manifest.webmanifest', 'icon.svg'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL))); self.skipWaiting(); });
 self.addEventListener('activate', e => {
