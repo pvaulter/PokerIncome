@@ -294,7 +294,7 @@ function normSession(s) {
 const calc = s => {
   const result = s.cashOut - s.buyIn;
   const mileage = s.miles * s.rate;
-  const net = result - s.expenses - mileage;
+  const net = result - s.expenses - s.tips - mileage;
   return { result, mileage, net, hourly: s.hours > 0 ? net / s.hours : null };
 };
 const rateFor = (rates, date) => {
@@ -546,7 +546,7 @@ function dashView() {
     <div class="hero">
       <span class="label">Net profit · ${esc(scope)}</span>
       <span class="big ${cls(t.net)}">${money(t.net, true)}</span>
-      <span class="muted" style="font-size:.85rem">After ${money(t.mil)} mileage and ${money(t.exp)} other expenses</span>
+      <span class="muted" style="font-size:.85rem">After ${money(t.mil)} mileage, ${money(t.tips)} food &amp; drinks and ${money(t.exp)} other expenses</span>
     </div>
     <div class="stats">
       <div class="stat"><span class="label">Hourly</span><span class="v ${cls(t.net)}">${t.hours ? money(t.net / t.hours, true) + '/h' : '—'}</span></div>
@@ -851,6 +851,7 @@ function bindLog() {
     $('#pv').innerHTML = `
       <div class="line"><span>Result</span><span class="num ${cls(c.result)}">${money(c.result, true)}</span></div>
       <div class="line"><span>Mileage (${hrs(s.miles)} mi × $${s.rate.toFixed(3)})</span><span class="num">${c.mileage ? '−' + money(c.mileage) : '$0'}</span></div>
+      <div class="line"><span>Food &amp; drinks</span><span class="num">${s.tips ? '−' + money(s.tips) : '$0'}</span></div>
       <div class="line"><span>Other expenses</span><span class="num">${s.expenses ? '−' + money(s.expenses) : '$0'}</span></div>
       <div class="line total"><span>Net profit${c.hourly != null ? ` · ${money(c.hourly, true)}/h` : ''}</span><span class="num ${cls(c.net)}">${money(c.net, true)}</span></div>`;
   };
