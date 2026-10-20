@@ -741,7 +741,9 @@ function logView() {
   const last = [...S.data.sessions].sort((a, b) => b.date.localeCompare(a.date))[0];
   // A first session defaults to the first saved venue, so the list starts on a real choice.
   const firstVenue = !last && [...S.data.venues].sort((a, b) => a.name.localeCompare(b.name))[0];
-  const s = ed || { date: todayISO(), venue: last?.venue || firstVenue?.name || '', type: last?.type || 'Cash', stakes: last?.stakes || '', buyIn: '', cashOut: '', hours: '', expenses: '', tips: '', miles: last ? last.miles : firstVenue?.miles || '', notes: '' };
+  const s = ed || { date: todayISO(), venue: last?.venue || firstVenue?.name || '', type: last?.type || 'Cash', stakes: last?.stakes || '', buyIn: '', cashOut: '', hours: '', expenses: '', tips: '', miles: '', notes: '' };
+  // A new session takes the venue's miles from Account, so a change there shows up here.
+  if (!ed) { const known = venueMiles(s.venue); s.miles = known ?? last?.miles ?? ''; }
   // Choices come from this member's saved venues and past sessions.
   const venues = uniq([...S.data.venues.map(v => v.name), ...S.data.sessions.map(x => x.venue), s.venue]);
   const v = x => (x === '' || x == null || (x === 0 && !ed) ? '' : x);
@@ -793,6 +795,15 @@ function logView() {
   </form>`;
 }
 // Names without repeats (ignoring case), A to Z.
+// Round-trip miles for a venue: the miles saved in Account, else the latest session there; null if never played.
+function venueMiles(name) {
+  name = String(name || '').trim().toLowerCase();
+  if (!name) return null;
+  const saved = S.data.venues.find(v => v.name.toLowerCase() === name);
+  if (saved) return saved.miles;
+  const past = [...S.data.sessions].sort((a, b) => b.date.localeCompare(a.date)).find(x => x.venue.toLowerCase() === name);
+  return past ? past.miles : null;
+}
 function uniq(list) {
   const m = new Map();
   list.map(x => String(x || '').trim()).filter(Boolean).forEach(x => m.has(x.toLowerCase()) || m.set(x.toLowerCase(), x));
@@ -853,10 +864,8 @@ function bindLog() {
     else { $('#fMiles').value = ''; upd(); box.focus(); }
   });
   $('#fVenue').addEventListener('change', () => {
-    const name = $('#fVenue').value.trim().toLowerCase();
-    const known = S.data.venues.find(v => v.name.toLowerCase() === name) ||
-      [...S.data.sessions].sort((a, b) => b.date.localeCompare(a.date)).find(s => s.venue.toLowerCase() === name);
-    if (known) { $('#fMiles').value = known.miles || ''; upd(); }
+    const known = venueMiles($('#fVenue').value);
+    if (known != null) { $('#fMiles').value = known || ''; upd(); }
   });
   upd();
   // Return moves to the next field, as on a phone keyboard; only the Save button saves.
