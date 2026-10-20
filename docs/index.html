@@ -898,7 +898,9 @@ function bindLog() {
     if (!s.venue) { err.textContent = 'Add the venue, for example Red Rock or Home game.'; err.hidden = false; return; }
     if (ed) Object.assign(ed, s); else S.data.sessions.push(s);
     const vn = S.data.venues.find(v => v.name.toLowerCase() === s.venue.toLowerCase());
-    if (vn) vn.miles = s.miles; else S.data.venues.push({ name: s.venue, miles: s.miles });
+    // Miles typed here only fill in a venue that has none yet; the miles set in Account always win.
+    if (!vn) S.data.venues.push({ name: s.venue, miles: s.miles });
+    else if (!vn.miles && s.miles) vn.miles = s.miles;
     try { await persist(); } catch (x) { err.textContent = x.message; err.hidden = false; return; }
     toast(ed ? 'Session updated' : `Saved · ${money(calc(s).net, true)}`);
     S.editing = null; S.tab = ed ? 'sessions' : 'dashboard'; render(); scrollTo(0, 0);
