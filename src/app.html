@@ -894,7 +894,11 @@ function bindLog() {
 
 /* --- account / settings --- */
 function settingsView() {
-  const venues = [...S.data.venues].sort((a, b) => a.name.localeCompare(b.name));
+  // Saved venues plus any played venue that has no miles yet, so every one of them can be given miles.
+  const saved = new Set(S.data.venues.map(v => v.name.toLowerCase()));
+  const venues = [...S.data.venues.map(v => ({ ...v, saved: true })),
+    ...uniq(S.data.sessions.map(x => x.venue)).filter(n => !saved.has(n.toLowerCase())).map(name => ({ name, miles: 0, saved: false }))]
+    .sort((a, b) => a.name.localeCompare(b.name));
   const rates = [...S.data.rates].sort((a, b) => b.from.localeCompare(a.from));
   return `<div class="sections">
     <div style="display:grid;gap:4px"><h1>Account</h1><span class="muted">Signed in as ${esc(S.user)} on this device.</span></div>
@@ -917,16 +921,16 @@ function settingsView() {
 
     <section>
       <h2>Venues</h2>
-      <p class="muted" style="margin:0">Round-trip miles fill in automatically when you log a session at that venue.</p>
+      <p class="muted" style="margin:0">Round-trip miles fill in automatically when you log a session at that venue. Change the miles or the name, then press Save.</p>
       ${venues.length ? `<div class="table-wrap"><table><thead><tr><th>Venue</th><th>Miles</th><th></th></tr></thead><tbody>
-        ${venues.map(v => `<tr data-venue="${S.data.venues.indexOf(v)}"><td><input class="input" style="min-width:120px" data-k="name" value="${esc(v.name)}" aria-label="Venue name"></td><td><input class="input num" style="max-width:72px" inputmode="decimal" data-k="miles" value="${v.miles || ''}" aria-label="Miles for ${esc(v.name)}"></td><td><button class="btn small danger" data-delvenue aria-label="Remove ${esc(v.name)}">Remove</button></td></tr>`).join('')}
+        ${venues.map(v => `<tr data-venue="${esc(v.name)}"><td><input class="input" style="min-width:100px" data-k="name" value="${esc(v.name)}" aria-label="Venue name"></td><td><input class="input num" style="max-width:76px" inputmode="decimal" data-k="miles" value="${v.miles || ''}" placeholder="0" aria-label="Miles for ${esc(v.name)}"></td><td><div class="actions" style="flex-wrap:nowrap"><button class="btn small" data-savevenue aria-label="Save ${esc(v.name)}">Save</button>${v.saved ? `<button class="btn small danger" data-delvenue aria-label="Remove ${esc(v.name)}" title="Remove">✕</button>` : ''}</div></td></tr>`).join('')}
       </tbody></table></div>` : `<p class="hint" style="margin:0">No venues yet. Add the places you play.</p>`}
       <form id="addVenue" class="actions" novalidate>
         <input class="input" id="nvName" placeholder="New venue, e.g. Red Rock" aria-label="New venue name" style="flex:1 1 180px;width:auto">
         <input class="input num" id="nvMiles" inputmode="decimal" placeholder="Miles" aria-label="Round-trip miles" style="max-width:110px">
         <button class="btn small">Add venue</button>
       </form>
-      <span class="hint">Renaming a venue also renames it in your past sessions. Removing one takes it off this list; the Log form still offers venues from your past sessions.</span>
+      <span class="hint">Renaming a venue also renames it in your past sessions. Removing one (✕) clears its miles; venues from your past sessions stay on this list.</span>
     </section>
 
     <section>
@@ -1008,15 +1012,23 @@ function bindSettings() {
   };
   const venueTaken = (name, except) => S.data.venues.some(x => x !== except && x.name.toLowerCase() === name.toLowerCase());
   $$('tr[data-venue]').forEach(tr => {
-    const v = S.data.venues[+tr.dataset.venue];
-    $('[data-k="miles"]', tr).onchange = async e => { v.miles = num(e.target.value); await persist(); toast('Miles saved'); };
-    $('[data-k="name"]', tr).onchange = async e => {
-      const name = e.target.value.trim();
-      if (!name || venueTaken(name, v)) { e.target.value = v.name; toast(name ? 'You already have a venue with that name' : 'A venue needs a name'); return; }
-      S.data.sessions.forEach(x => { if (x.venue === v.name) x.venue = name; });
-      v.name = name; await persist(); toast('Venue renamed'); render();
+    const old = tr.dataset.venue;
+    const find = () => S.data.venues.find(x => x.name === old);
+    const nameIn = $('[data-k="name"]', tr), milesIn = $('[data-k="miles"]', tr), saveBtn = $('[data-savevenue]', tr);
+    const dirty = () => saveBtn.classList.toggle('primary', nameIn.value.trim() !== old || num(milesIn.value) !== (find()?.miles || 0));
+    nameIn.oninput = milesIn.oninput = dirty;
+    milesIn.onkeydown = nameIn.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); saveBtn.click(); } };
+    saveBtn.onclick = async () => {
+      let v = find();
+      const name = nameIn.value.trim();
+      if (!name || venueTaken(name, v)) { nameIn.value = old; toast(name ? 'You already have a venue with that name' : 'A venue needs a name'); return; }
+      if (!v) { v = { name: old, miles: 0 }; S.data.venues.push(v); }
+      if (name !== old) S.data.sessions.forEach(x => { if (x.venue === old) x.venue = name; });
+      v.name = name; v.miles = num(milesIn.value);
+      await persist(); toast(`${name} saved`); render();
     };
-    $('[data-delvenue]', tr).onclick = async () => { S.data.venues.splice(+tr.dataset.venue, 1); await persist(); toast('Venue removed'); render(); };
+    const del = $('[data-delvenue]', tr);
+    if (del) del.onclick = async () => { S.data.venues = S.data.venues.filter(x => x.name !== old); await persist(); toast('Venue removed'); render(); };
   });
   $('#addVenue').onsubmit = async e => {
     e.preventDefault();
