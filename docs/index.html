@@ -122,6 +122,7 @@ textarea.input { min-height: 70px; resize: vertical; }
 .chart { position: relative; width: 100%; }
 .chart svg { display: block; width: 100%; height: auto; overflow: visible; }
 .chart text { fill: var(--muted); font-family: var(--font-body); font-size: 11px; }
+.chart text.count { font-family: var(--font-num); font-size: 10px; font-weight: 500; pointer-events: none; }
 .chart .gridline { stroke: var(--grid); stroke-width: 1; }
 .chart .zero { stroke: var(--muted); stroke-width: 1; opacity: .6; }
 .tip { position: absolute; pointer-events: none; background: var(--ink); color: var(--bg); border-radius: 8px; padding: 7px 10px; font-size: .8rem; white-space: nowrap; transform: translate(-50%, calc(-100% - 10px)); z-index: 5; box-shadow: 0 4px 14px rgb(0 0 0 / .2); }
@@ -745,6 +746,7 @@ function barsH(el, items, noun = 'venues', tipFn, perHour) {
         <rect x="0" y="${y}" width="${W}" height="${rowH}" fill="transparent"/>
         <text x="${labW}" y="${y + rowH / 2 + 4}" text-anchor="end" style="fill:var(--ink)">${esc(lab)}</text>
         <rect x="${bx}" y="${y + 6}" width="${bw}" height="${rowH - 12}" rx="3" fill="${it.net >= 0 ? 'var(--win)' : 'var(--loss)'}"/>
+        ${countH(it.n, bx, bw, y + rowH / 2 + 3.5, it.net >= 0)}
         <text x="${perHour ? W - 58 : W}" y="${y + rowH / 2 + 4}" text-anchor="end" class="num" style="fill:var(--ink);font-family:var(--font-num)">${short(it.net)}</text>
         ${perHour ? `<text x="${W}" y="${y + rowH / 2 + 4}" text-anchor="end" class="num" style="font-family:var(--font-num)">${it.hours ? short(it.net / it.hours) + '/h' : '—'}</text>` : ''}
       </g>`;
@@ -754,6 +756,20 @@ function barsH(el, items, noun = 'venues', tipFn, perHour) {
   return list;
 }
 
+// The session count inside a horizontal bar, or just past its end when the bar is too short to hold it.
+function countH(n, bx, bw, y, up) {
+  if (!n) return '';
+  const fits = bw >= String(n).length * 6.5 + 10;
+  const x = fits ? (up ? bx + bw - 5 : bx + 5) : (up ? bx + bw + 4 : bx - 4);
+  return `<text x="${x}" y="${y}" text-anchor="${fits === up ? 'end' : 'start'}" class="count"${fits ? ' style="fill:var(--surface)"' : ''}>${n}</text>`;
+}
+// The session count inside a vertical bar, or just across the zero line when the bar is too short to hold it.
+function countV(n, cx, bw, top, h, zero, up) {
+  if (!n || bw < 14) return '';
+  const fits = h >= 16;
+  const y = fits ? (up ? top + 12 : top + h - 5) : (up ? zero + 12 : zero - 4);
+  return `<text x="${cx}" y="${y}" text-anchor="middle" class="count"${fits ? ' style="fill:var(--surface)"' : ''}>${n}</text>`;
+}
 function barsV(el, items, tipFn) {
   const W = Math.max(el.clientWidth, 260), H = 190, L = 46, R = 8, T = 18, B = 24;
   const ticks = niceTicks(Math.min(0, ...items.map(x => x.net)), Math.max(0, ...items.map(x => x.net)), 4);
@@ -770,6 +786,7 @@ function barsV(el, items, tipFn) {
       return `<g data-i="${i}" class="bar">
         <rect x="${cx - slot / 2}" y="${T}" width="${slot}" height="${H - T - B}" fill="transparent"/>
         <rect x="${cx - bw / 2}" y="${top}" width="${bw}" height="${h}" rx="3" fill="${it.net >= 0 ? 'var(--win)' : 'var(--loss)'}"/>
+        ${countV(it.n, cx, bw, top, h, Y(0), it.net >= 0)}
         ${items.length <= 8 ? `<text x="${cx}" y="${ly}" text-anchor="middle" style="fill:var(--ink);font-family:var(--font-num);font-size:10.5px">${short(it.net)}</text>` : ''}
         ${i % every === 0 ? `<text x="${cx}" y="${H - 6}" text-anchor="middle">${esc(it.axis ?? it.label)}</text>` : ''}
       </g>`;
