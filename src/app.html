@@ -548,7 +548,7 @@ function dashView() {
         ${[['all', 'All games'], ['Cash', 'Cash'], ['Tournament', 'Tournaments']].map(([v, l]) => `<button data-type="${v}" aria-pressed="${S.filters.type === v}">${l}</button>`).join('')}
       </div>
       <div class="seg" role="group" aria-label="Top chart">
-        ${[['line', 'Running total'], ['month', 'Monthly']].map(([v, l]) => `<button data-chart="${v}" aria-pressed="${S.chart === v}">${l}</button>`).join('')}
+        ${[['line', 'Running total'], ['month', 'Monthly Buckets']].map(([v, l]) => `<button data-chart="${v}" aria-pressed="${S.chart === v}">${l}</button>`).join('')}
       </div>
       ${stakes.length ? `<select class="input" id="fs" aria-label="Stakes"><option value="all">${S.filters.type === 'Tournament' ? 'All events' : 'All stakes'}</option>${stakes.map(([k, l]) => `<option value="${esc(k)}" ${S.filters.stakes === k ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select>` : ''}
     </div>
@@ -564,7 +564,7 @@ function dashView() {
       <div class="stat"><span class="label">Hours</span><span class="v">${hrs(t.hours)}</span></div>
     </div>
     ${rows.length ? `<div class="charts">
-      <section class="panel wide"><header><h2>${S.chart === 'month' ? 'Monthly' : 'Running total'}</h2><span class="hint">${S.chart === 'month' ? 'Net profit each month' : 'Net profit after each session'}</span></header><div class="chart" id="cRun"></div></section>
+      <section class="panel wide"><header><h2>${S.chart === 'month' ? 'Monthly Buckets' : 'Running total'}</h2><span class="hint">${S.chart === 'month' ? 'Net profit each month' : 'Net profit after each session'}</span></header><div class="chart" id="cRun"></div></section>
       <section class="panel wide"><header><h2>By game type</h2><span class="hint">${S.filters.type === 'Tournament' ? 'Net and per hour, by event' : 'Net and per hour, by stakes'}</span></header><div class="chart" id="cGame"></div></section>
       <section class="panel"><header><h2>By venue</h2><span class="hint">Net profit</span></header><div class="chart" id="cVenue"></div></section>
       <section class="panel"><header><h2>${S.filters.year === 'all' ? 'By year' : 'By month'}</h2><span class="hint">Net profit</span></header><div class="chart" id="cYear"></div></section>
