@@ -592,7 +592,7 @@ function dashView() {
     ${rows.length ? `<div class="charts">
       <section class="panel wide"><header><h2>${S.chart === 'month' ? 'Monthly Buckets' : 'Running total'}</h2><span class="hint">${S.chart === 'month' ? 'Net profit each month' : 'Net profit after each session'}</span></header><div class="chart" id="cRun"></div></section>
       <section class="panel wide"><header><h2>By game type</h2><span class="hint">${S.filters.type === 'Tournament' ? 'Net and per hour, by event' : 'Net and per hour, by stakes'} · tap a bar to filter</span></header><div class="chart" id="cGame"></div></section>
-      <section class="panel"><header><h2>By venue</h2><span class="hint">Net profit · tap to filter</span></header><div class="chart" id="cVenue"></div></section>
+      <section class="panel"><header><h2>By venue</h2><span class="hint">Net and per hour · tap to filter</span></header><div class="chart" id="cVenue"></div></section>
       <section class="panel"><header><h2>${S.filters.year === 'all' ? 'By year' : 'By month'}</h2><span class="hint">Net profit · tap to filter</span></header><div class="chart" id="cYear"></div></section>
       <section class="panel wide"><header><h2>By session length</h2><span class="hint">Average net per session</span></header><div class="chart" id="cHours"></div></section>
     </div>` : `<div class="empty"><p class="muted" style="margin:0">No sessions match these filters.</p></div>`}`;
@@ -631,7 +631,8 @@ function drawCharts() {
     it => `${esc(it.label)}<br><b>${money(it.net, true)}</b> · ${it.n} session${it.n === 1 ? '' : 's'}${it.hours ? ` · ${money(it.net / it.hours, true)}/h` : ''}`, true));
   // by venue
   const byV = group(filtered(true, 'venue'), PICKS.venue.key);
-  pickable($('#cVenue'), 'venue', barsH($('#cVenue'), byV.sort((a, b) => b.net - a.net)));
+  pickable($('#cVenue'), 'venue', barsH($('#cVenue'), byV.sort((a, b) => b.net - a.net), 'venues',
+    it => `${esc(it.label)}<br><b>${money(it.net, true)}</b> · ${it.n} session${it.n === 1 ? '' : 's'}${it.hours ? ` · ${money(it.net / it.hours, true)}/h` : ''}`, true));
   // by year or month
   const byP = group(filtered(true, 'period'), PICKS.period.key).sort((a, b) => a.key.localeCompare(b.key));
   pickable($('#cYear'), 'period', barsV($('#cYear'), S.filters.year === 'all' ? byP : byP.map(x => ({ ...x, label: MONTHS[+x.key - 1] }))));
