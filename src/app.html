@@ -582,6 +582,7 @@ function dashView() {
       <section class="panel"><header><h2>By venue</h2><span class="hint">Net and per hour · tap to filter</span></header><div class="chart" id="cVenue"></div></section>
       <section class="panel"><header><h2>${S.filters.year === 'all' ? 'By year' : 'By month'}</h2><span class="hint">Net profit · tap to filter</span></header><div class="chart" id="cYear"></div></section>
       <section class="panel wide"><header><h2>By session length</h2><span class="hint">Average net per session</span></header><div class="chart" id="cHours"></div></section>
+      <section class="panel wide"><header><h2>By day of week</h2><span class="hint">Net and per hour, by the day you played</span></header><div class="chart" id="cDay"></div></section>
     </div>` : `<div class="empty"><p class="muted" style="margin:0">No sessions match these filters.</p></div>`}`;
 }
 function bindDash() {
@@ -631,6 +632,10 @@ function drawCharts() {
     return { key: label, label, n: r.length, net: r.length ? net / r.length : 0, total: net };
   }).filter(b => b.n);
   barsV($('#cHours'), hb, b => `${b.label}: <b>${money(b.net, true)}</b> avg · ${b.n} session${b.n === 1 ? '' : 's'}`);
+  // by day of week, Monday first
+  const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+  const byD = group(rows, s => DAYS[(new Date(s.date + 'T12:00').getDay() + 6) % 7]).sort((a, b) => DAYS.indexOf(a.key) - DAYS.indexOf(b.key));
+  barsH($('#cDay'), byD, 'days', it => `${it.label}<br><b>${money(it.net, true)}</b> · ${it.n} session${it.n === 1 ? '' : 's'}${it.hours ? ` · ${money(it.net / it.hours, true)}/h` : ''}`, true);
 }
 // Lets each bar of a chart set or clear that chart's pick, and dims the bars that aren't picked.
 function pickable(el, name, items) {
@@ -725,7 +730,7 @@ function barsH(el, items, noun = 'venues', tipFn, perHour) {
   const lo = Math.min(0, ...list.map(x => x.net)), hi = Math.max(0, ...list.map(x => x.net));
   const span = (hi - lo) || 1, x0 = labW + 8, x1 = W - valW;
   const X = v => x0 + (v - lo) / span * (x1 - x0);
-  el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Net profit by ${noun === 'venues' ? 'venue' : 'game type'}">
+  el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Net profit by ${{ venues: 'venue', days: 'day of week' }[noun] || 'game type'}">
     <line class="zero" x1="${X(0)}" x2="${X(0)}" y1="${T}" y2="${H - B}"/>
     ${list.map((it, i) => {
       const y = T + i * rowH, bx = Math.min(X(0), X(it.net)), bw = Math.max(1.5, Math.abs(X(it.net) - X(0)));
