@@ -543,6 +543,7 @@ function dashView() {
     </div>
     ${rows.length ? `<div class="charts">
       <section class="panel wide"><header><h2>Running total</h2><span class="hint">Net profit after each session</span></header><div class="chart" id="cRun"></div></section>
+      <section class="panel wide"><header><h2>By game type</h2><span class="hint">${S.filters.type === 'Tournament' ? 'Net profit by event' : 'Net profit by stakes'}</span></header><div class="chart" id="cGame"></div></section>
       <section class="panel"><header><h2>By venue</h2><span class="hint">Net profit</span></header><div class="chart" id="cVenue"></div></section>
       <section class="panel"><header><h2>${S.filters.year === 'all' ? 'By year' : 'By month'}</h2><span class="hint">Net profit</span></header><div class="chart" id="cYear"></div></section>
       <section class="panel wide"><header><h2>By session length</h2><span class="hint">Average net per session</span></header><div class="chart" id="cHours"></div></section>
@@ -560,6 +561,12 @@ function drawCharts() {
   let run = 0;
   const pts = rows.map(s => { const c = calc(s); run += c.net; return { s, net: c.net, run }; });
   lineChart($('#cRun'), pts);
+  // by game type: cash games split by stakes, tournaments together unless only tournaments are shown
+  const byG = group(rows, s => s.type === 'Tournament'
+    ? (S.filters.type === 'Tournament' ? s.stakes.trim() || 'No event name' : 'Tournaments')
+    : (s.stakes.trim() ? `Cash ${s.stakes.trim()}` : 'Cash, no stakes'));
+  barsH($('#cGame'), byG.sort((a, b) => b.net - a.net), S.filters.type === 'Tournament' ? 'events' : 'games',
+    it => `${esc(it.label)}<br><b>${money(it.net, true)}</b> · ${it.n} session${it.n === 1 ? '' : 's'}${it.hours ? ` · ${money(it.net / it.hours, true)}/h` : ''}`);
   // by venue
   const byV = group(rows, s => s.venue || 'Unknown');
   barsH($('#cVenue'), byV.sort((a, b) => b.net - a.net));
@@ -643,19 +650,19 @@ function lineChart(el, pts) {
   hit.addEventListener('pointermove', move); hit.addEventListener('pointerdown', move); hit.addEventListener('pointerleave', leave);
 }
 
-function barsH(el, items) {
+function barsH(el, items, noun = 'venues', tipFn) {
   // Keep the biggest winners and losers; fold the small middle into one row.
   let list = items;
   if (items.length > 12) {
     const top = items.slice(0, 6), bottom = items.slice(-5), mid = items.slice(6, -5);
-    list = top.concat([{ key: 'other', label: `${mid.length} other venues`, net: mid.reduce((a, x) => a + x.net, 0), n: mid.reduce((a, x) => a + x.n, 0) }], bottom);
+    list = top.concat([{ key: 'other', label: `${mid.length} other ${noun}`, net: mid.reduce((a, x) => a + x.net, 0), n: mid.reduce((a, x) => a + x.n, 0), hours: mid.reduce((a, x) => a + (x.hours || 0), 0) }], bottom).sort((a, b) => b.net - a.net);
   }
   const W = Math.max(el.clientWidth, 260), rowH = 26, T = 4, B = 4, labW = Math.min(130, W * 0.36), valW = 62;
   const H = T + B + list.length * rowH;
   const lo = Math.min(0, ...list.map(x => x.net)), hi = Math.max(0, ...list.map(x => x.net));
   const span = (hi - lo) || 1, x0 = labW + 8, x1 = W - valW;
   const X = v => x0 + (v - lo) / span * (x1 - x0);
-  el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Net profit by venue">
+  el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Net profit by ${noun === 'venues' ? 'venue' : 'game type'}">
     <line class="zero" x1="${X(0)}" x2="${X(0)}" y1="${T}" y2="${H - B}"/>
     ${list.map((it, i) => {
       const y = T + i * rowH, bx = Math.min(X(0), X(it.net)), bw = Math.max(1.5, Math.abs(X(it.net) - X(0)));
@@ -668,7 +675,7 @@ function barsH(el, items) {
       </g>`;
     }).join('')}
   </svg>`;
-  bindBarTips(el, list, it => `${esc(it.label)}<br><b>${money(it.net, true)}</b> · ${it.n} session${it.n === 1 ? '' : 's'}`, W, H, (i) => [W / 2, T + i * rowH + 4]);
+  bindBarTips(el, list, tipFn || (it => `${esc(it.label)}<br><b>${money(it.net, true)}</b> · ${it.n} session${it.n === 1 ? '' : 's'}`), W, H, (i) => [W / 2, T + i * rowH + 4]);
 }
 
 function barsV(el, items, tipFn) {
