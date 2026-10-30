@@ -305,7 +305,7 @@ const rateFor = (rates, date) => {
 };
 
 /* ---------- app state ---------- */
-const S = { user: null, key: null, data: null, tab: 'dashboard', editing: null, filters: { year: 'all', type: 'all' }, q: '' };
+const S = { user: null, key: null, data: null, tab: 'dashboard', editing: null, filters: { year: 'all', type: 'all', stakes: 'all' }, q: '' };
 
 async function persist() {
   await saveLocal();
@@ -521,10 +521,25 @@ function bindAuth() {
 }
 
 /* --- dashboard --- */
-function filtered() {
-  const { year, type } = S.filters;
-  return S.data.sessions.filter(s => (year === 'all' || s.date.startsWith(year)) && (type === 'all' || s.type === type))
+const stakesKey = s => s.stakes.trim().toLowerCase();
+// Stakes are a cash game's; under Tournaments the same field holds the event name.
+const stakesType = () => (S.filters.type === 'Tournament' ? 'Tournament' : 'Cash');
+function filtered(withStakes = true) {
+  const { year, type, stakes } = S.filters;
+  return S.data.sessions.filter(s => (year === 'all' || s.date.startsWith(year)) && (type === 'all' || s.type === type)
+    && (!withStakes || stakes === 'all' || (s.type === stakesType() && stakesKey(s) === stakes)))
     .sort((a, b) => a.date.localeCompare(b.date));
+}
+// The cash stakes (or, under Tournaments, the events) played in the chosen year, smallest blinds first.
+function stakesOptions() {
+  const m = new Map();
+  filtered(false).forEach(s => { const k = stakesKey(s); if (k && s.type === stakesType() && !m.has(k)) m.set(k, s.stakes.trim()); });
+  const nums = l => (l.match(/\d*\.?\d+/g) || []).map(Number);
+  return [...m].sort(([, a], [, b]) => {
+    const x = nums(a), y = nums(b);
+    for (let i = 0; i < Math.max(x.length, y.length); i++) if ((x[i] ?? -1) !== (y[i] ?? -1)) return (x[i] ?? -1) - (y[i] ?? -1);
+    return a.localeCompare(b);
+  });
 }
 function dashView() {
   const all = S.data.sessions;
@@ -533,15 +548,19 @@ function dashView() {
       <p class="muted" style="margin:0;max-width:36ch">Log your first session and your profit, hourly rate and best venues show up here. Moving from another device? Import a backup from Account.</p>
       <button class="btn primary" id="goLog">Log a session</button></div>`;
   const years = [...new Set(all.map(s => s.date.slice(0, 4)))].sort().reverse();
+  const stakes = stakesOptions();
+  if (S.filters.stakes !== 'all' && !stakes.some(([k]) => k === S.filters.stakes)) S.filters.stakes = 'all';
   const rows = filtered();
   const t = rows.reduce((a, s) => { const c = calc(s); a.net += c.net; a.hours += s.hours; a.win += c.net > 0 ? 1 : 0; a.mil += c.mileage; a.exp += s.expenses; a.tips += s.tips; return a; }, { net: 0, hours: 0, win: 0, mil: 0, exp: 0, tips: 0 });
-  const scope = (S.filters.year === 'all' ? 'All time' : S.filters.year) + (S.filters.type === 'all' ? '' : ` · ${S.filters.type === 'Cash' ? 'Cash games' : 'Tournaments'}`);
+  const picked = stakes.find(([k]) => k === S.filters.stakes);
+  const scope = (S.filters.year === 'all' ? 'All time' : S.filters.year) + (S.filters.type === 'all' ? '' : ` · ${S.filters.type === 'Cash' ? 'Cash games' : 'Tournaments'}`) + (picked ? ` · ${picked[1]}` : '');
   return `
     <div class="filters">
       <select class="input" id="fy" aria-label="Year"><option value="all">All years</option>${years.map(y => `<option ${S.filters.year === y ? 'selected' : ''}>${y}</option>`).join('')}</select>
       <div class="seg" role="group" aria-label="Game type">
         ${[['all', 'All games'], ['Cash', 'Cash'], ['Tournament', 'Tournaments']].map(([v, l]) => `<button data-type="${v}" aria-pressed="${S.filters.type === v}">${l}</button>`).join('')}
       </div>
+      ${stakes.length ? `<select class="input" id="fs" aria-label="Stakes"><option value="all">${S.filters.type === 'Tournament' ? 'All events' : 'All stakes'}</option>${stakes.map(([k, l]) => `<option value="${esc(k)}" ${S.filters.stakes === k ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select>` : ''}
     </div>
     <div class="hero">
       <span class="label">Net profit · ${esc(scope)}</span>
@@ -566,6 +585,7 @@ function bindDash() {
   const g = $('#goLog'); if (g) { g.onclick = () => { S.tab = 'log'; render(); }; return; }
   $('#fy').onchange = e => { S.filters.year = e.target.value; render(); };
   $$('[data-type]').forEach(b => b.onclick = () => { S.filters.type = b.dataset.type; render(); });
+  const fs = $('#fs'); if (fs) fs.onchange = e => { S.filters.stakes = e.target.value; render(); };
   drawCharts();
 }
 function drawCharts() {
