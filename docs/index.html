@@ -556,7 +556,7 @@ function dashView() {
     </div>
     ${rows.length ? `<div class="charts">
       <section class="panel wide"><header><h2>Running total</h2><span class="hint">Net profit after each session</span></header><div class="chart" id="cRun"></div></section>
-      <section class="panel wide"><header><h2>By game type</h2><span class="hint">${S.filters.type === 'Tournament' ? 'Net profit by event' : 'Net profit by stakes'}</span></header><div class="chart" id="cGame"></div></section>
+      <section class="panel wide"><header><h2>By game type</h2><span class="hint">${S.filters.type === 'Tournament' ? 'Net and per hour, by event' : 'Net and per hour, by stakes'}</span></header><div class="chart" id="cGame"></div></section>
       <section class="panel"><header><h2>By venue</h2><span class="hint">Net profit</span></header><div class="chart" id="cVenue"></div></section>
       <section class="panel"><header><h2>${S.filters.year === 'all' ? 'By year' : 'By month'}</h2><span class="hint">Net profit</span></header><div class="chart" id="cYear"></div></section>
       <section class="panel wide"><header><h2>By session length</h2><span class="hint">Average net per session</span></header><div class="chart" id="cHours"></div></section>
@@ -579,7 +579,7 @@ function drawCharts() {
     ? (S.filters.type === 'Tournament' ? s.stakes.trim() || 'No event name' : 'Tournaments')
     : (s.stakes.trim() ? `Cash ${s.stakes.trim()}` : 'Cash, no stakes'));
   barsH($('#cGame'), byG.sort((a, b) => b.net - a.net), S.filters.type === 'Tournament' ? 'events' : 'games',
-    it => `${esc(it.label)}<br><b>${money(it.net, true)}</b> · ${it.n} session${it.n === 1 ? '' : 's'}${it.hours ? ` · ${money(it.net / it.hours, true)}/h` : ''}`);
+    it => `${esc(it.label)}<br><b>${money(it.net, true)}</b> · ${it.n} session${it.n === 1 ? '' : 's'}${it.hours ? ` · ${money(it.net / it.hours, true)}/h` : ''}`, true);
   // by venue
   const byV = group(rows, s => s.venue || 'Unknown');
   barsH($('#cVenue'), byV.sort((a, b) => b.net - a.net));
@@ -663,14 +663,14 @@ function lineChart(el, pts) {
   hit.addEventListener('pointermove', move); hit.addEventListener('pointerdown', move); hit.addEventListener('pointerleave', leave);
 }
 
-function barsH(el, items, noun = 'venues', tipFn) {
+function barsH(el, items, noun = 'venues', tipFn, perHour) {
   // Keep the biggest winners and losers; fold the small middle into one row.
   let list = items;
   if (items.length > 12) {
     const top = items.slice(0, 6), bottom = items.slice(-5), mid = items.slice(6, -5);
     list = top.concat([{ key: 'other', label: `${mid.length} other ${noun}`, net: mid.reduce((a, x) => a + x.net, 0), n: mid.reduce((a, x) => a + x.n, 0), hours: mid.reduce((a, x) => a + (x.hours || 0), 0) }], bottom).sort((a, b) => b.net - a.net);
   }
-  const W = Math.max(el.clientWidth, 260), rowH = 26, T = 4, B = 4, labW = Math.min(130, W * 0.36), valW = 62;
+  const W = Math.max(el.clientWidth, 260), rowH = 26, T = 4, B = 4, labW = Math.min(130, W * 0.36), valW = perHour ? 116 : 62;
   const H = T + B + list.length * rowH;
   const lo = Math.min(0, ...list.map(x => x.net)), hi = Math.max(0, ...list.map(x => x.net));
   const span = (hi - lo) || 1, x0 = labW + 8, x1 = W - valW;
@@ -684,7 +684,8 @@ function barsH(el, items, noun = 'venues', tipFn) {
         <rect x="0" y="${y}" width="${W}" height="${rowH}" fill="transparent"/>
         <text x="${labW}" y="${y + rowH / 2 + 4}" text-anchor="end" style="fill:var(--ink)">${esc(lab)}</text>
         <rect x="${bx}" y="${y + 6}" width="${bw}" height="${rowH - 12}" rx="3" fill="${it.net >= 0 ? 'var(--win)' : 'var(--loss)'}"/>
-        <text x="${W}" y="${y + rowH / 2 + 4}" text-anchor="end" class="num" style="fill:var(--ink);font-family:var(--font-num)">${short(it.net)}</text>
+        <text x="${perHour ? W - 58 : W}" y="${y + rowH / 2 + 4}" text-anchor="end" class="num" style="fill:var(--ink);font-family:var(--font-num)">${short(it.net)}</text>
+        ${perHour ? `<text x="${W}" y="${y + rowH / 2 + 4}" text-anchor="end" class="num" style="font-family:var(--font-num)">${it.hours ? short(it.net / it.hours) + '/h' : '—'}</text>` : ''}
       </g>`;
     }).join('')}
   </svg>`;
