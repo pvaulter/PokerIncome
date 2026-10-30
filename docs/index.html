@@ -596,7 +596,47 @@ function dashView() {
       <section class="panel"><header><h2>${S.filters.year === 'all' ? 'By year' : 'By month'}</h2><span class="hint">Net profit · tap to filter</span></header><div class="chart" id="cYear"></div></section>
       <section class="panel wide"><header><h2>By session length</h2><span class="hint">Average net per session</span></header><div class="chart" id="cHours"></div></section>
       <section class="panel wide"><header><h2>By day of week</h2><span class="hint">Net and per hour, by the day you played</span></header><div class="chart" id="cDay"></div></section>
+      <section class="panel wide"><header><h2>Bankroll &amp; risk</h2><span class="hint">Cash games, all time, from your own swings</span></header>${bankrollView()}</section>
     </div>` : `<div class="empty"><p class="muted" style="margin:0">No sessions match these filters.</p></div>`}`;
+}
+// Bankroll and risk of going broke for each cash stake, from that stake's own win rate and swings.
+// Risk of ruin = e^(−2·winrate·bankroll / variance), both per hour; a losing stake has no safe bankroll.
+function bankrollStakes() {
+  const by = new Map();
+  S.data.sessions.filter(s => s.type === 'Cash' && s.hours > 0 && s.stakes).forEach(s => {
+    const k = s.stakes.trim(), g = by.get(k) || { stakes: k, rows: [] }; g.rows.push(s); by.set(k, g);
+  });
+  return [...by.values()].filter(g => g.rows.length >= 10).map(g => {
+    const hours = g.rows.reduce((a, s) => a + s.hours, 0), net = g.rows.reduce((a, s) => a + calc(s).net, 0), wr = net / hours;
+    const variance = g.rows.reduce((a, s) => a + (calc(s).net - wr * s.hours) ** 2, 0) / hours;
+    const buyins = g.rows.map(s => s.buyIn).filter(b => b > 0).sort((a, b) => a - b), buyIn = buyins[Math.floor(buyins.length / 2)] || 0;
+    const safe = wr > 0 ? Math.max(10 * buyIn, variance * Math.log(20) / (2 * wr)) : 30 * buyIn;
+    const swing = Math.sqrt(variance * (hours / g.rows.length));
+    return { stakes: g.stakes, n: g.rows.length, wr, variance, buyIn, safe, swing };
+  }).sort((a, b) => a.buyIn - b.buyIn);
+}
+function ruin(st, bank) { return st.wr <= 0 ? 1 : Math.min(1, Math.exp(-2 * st.wr * bank / st.variance)); }
+function bankrollView() {
+  const list = bankrollStakes();
+  if (!list.length) return '<p class="muted" style="margin:0">Log at least 10 cash sessions at a stake to see its bankroll.</p>';
+  if (S.bankroll == null) { try { S.bankroll = +localStorage.getItem('pokerIncome.bankroll') || 0; } catch { S.bankroll = 0; } }
+  const bank = S.bankroll;
+  const pct = r => r >= .995 ? '100%' : r < .001 ? 'under 0.1%' : (r * 100).toFixed(r < .1 ? 1 : 0) + '%';
+  const ok = list.filter(st => bank >= st.safe), next = list.find(st => st.wr > 0 && bank < st.safe);
+  return `<div style="display:grid;gap:12px">
+    <label class="field" style="max-width:260px"><span>Your bankroll</span><input class="input" id="bank" inputmode="decimal" placeholder="$0" value="${bank ? money(bank) : ''}"></label>
+    ${bank ? `<p style="margin:0">${ok.length ? `With <b>${money(bank)}</b> you’re rolled for <b>${ok.map(st => esc(st.stakes)).join(', ')}</b>.` : `With <b>${money(bank)}</b> you’re not yet rolled for any stake you play.`}${next ? ` ${esc(next.stakes)} needs <b>${money(next.safe)}</b>.` : ''}</p>` : '<p class="muted" style="margin:0">Enter your bankroll to see which stakes it covers.</p>'}
+    <div class="table-wrap"><table>
+      <thead><tr><th>Stakes</th><th class="num">Typical buy-in</th><th class="num">Swing / session</th><th class="num">Win rate</th><th class="num">Bankroll needed</th>${bank ? '<th class="num">Risk of going broke</th>' : ''}</tr></thead>
+      <tbody>${list.map(st => {
+        const r = ruin(st, bank);
+        return `<tr><td>${esc(st.stakes)} <span class="muted" style="font-size:.8rem">· ${st.n}</span></td>
+          <td class="num">${money(st.buyIn)}</td><td class="num">±${money(st.swing)}</td>
+          <td class="num ${cls(st.wr)}">${money(st.wr, true)}/h</td><td class="num">${money(st.safe)}</td>
+          ${bank ? `<td class="num ${r > .2 ? 'loss' : r <= .05 ? 'win' : ''}">${st.wr <= 0 ? 'High, losing so far' : pct(r)}</td>` : ''}</tr>`;
+      }).join('')}</tbody></table></div>
+    <p class="hint" style="margin:0">Bankroll needed keeps your risk of going broke under 5%, and is never less than 10 buy-ins. A stake you’re losing at uses 30 buy-ins. Stakes with fewer than 10 sessions are left out.</p>
+  </div>`;
 }
 function bindDash() {
   const g = $('#goLog'); if (g) { g.onclick = () => { S.tab = 'log'; render(); }; return; }
@@ -606,6 +646,7 @@ function bindDash() {
   $$('[data-unpick]').forEach(b => b.onclick = () => { delete S.picks[b.dataset.unpick]; render(); });
   $$('[data-chart]').forEach(b => b.onclick = () => { S.chart = b.dataset.chart; render(); });
   const fs = $('#fs'); if (fs) fs.onchange = e => { S.filters.stakes = e.target.value; render(); };
+  const bk = $('#bank'); if (bk) bk.onchange = e => { S.bankroll = Math.max(0, parseFloat(e.target.value.replace(/[^\d.]/g, '')) || 0); try { localStorage.setItem('pokerIncome.bankroll', S.bankroll); } catch {} render(); };
   drawCharts();
 }
 function drawCharts() {
