@@ -111,6 +111,7 @@ textarea.input { min-height: 70px; resize: vertical; }
 .chart { position: relative; width: 100%; }
 .chart svg { display: block; width: 100%; height: auto; overflow: visible; }
 .chart text { fill: var(--muted); font-family: var(--font-body); font-size: 11px; }
+.chart text.count { font-family: var(--font-num); font-size: 10px; font-weight: 500; pointer-events: none; }
 .chart .gridline { stroke: var(--grid); stroke-width: 1; }
 .chart .zero { stroke: var(--muted); stroke-width: 1; opacity: .6; }
 .tip { position: absolute; pointer-events: none; background: var(--ink); color: var(--bg); border-radius: 8px; padding: 7px 10px; font-size: .8rem; white-space: nowrap; transform: translate(-50%, calc(-100% - 10px)); z-index: 5; box-shadow: 0 4px 14px rgb(0 0 0 / .2); }
@@ -292,7 +293,7 @@ const rateFor = (rates, date) => {
 };
 
 /* ---------- app state ---------- */
-const S = { user: null, key: null, data: null, tab: 'dashboard', editing: null, filters: { year: 'all', type: 'all', stakes: 'all' }, chart: 'line', q: '' };
+const S = { user: null, key: null, data: null, tab: 'dashboard', editing: null, filters: { year: 'all', type: 'all', stakes: 'all' }, picks: {}, chart: 'line', q: '' };
 
 async function persist() {
   await saveLocal();
@@ -511,16 +512,26 @@ function bindAuth() {
 const stakesKey = s => s.stakes.trim().toLowerCase();
 // Stakes are a cash game's; under Tournaments the same field holds the event name.
 const stakesType = () => (S.filters.type === 'Tournament' ? 'Tournament' : 'Cash');
-function filtered(withStakes = true) {
+// Bars in the By game type, By venue and By year (or month) charts work as filters for the rest of the page;
+// clicking the picked bar again drops it. Each chart leaves out its own pick so its other bars stay visible.
+const PICKS = {
+  game: { name: () => 'Game', key: s => s.type === 'Tournament'
+    ? (S.filters.type === 'Tournament' ? s.stakes.trim() || 'No event name' : 'Tournaments')
+    : (s.stakes.trim() ? `Cash ${s.stakes.trim()}` : 'Cash, no stakes') },
+  venue: { name: () => 'Venue', key: s => s.venue || 'Unknown' },
+  period: { name: () => (S.filters.year === 'all' ? 'Year' : 'Month'), key: s => (S.filters.year === 'all' ? s.date.slice(0, 4) : s.date.slice(5, 7)) },
+};
+const picked = (s, except) => except === 'all' || Object.entries(S.picks).every(([n, p]) => n === except || PICKS[n].key(s).toLowerCase() === p.id);
+function filtered(withStakes = true, except = null) {
   const { year, type, stakes } = S.filters;
   return S.data.sessions.filter(s => (year === 'all' || s.date.startsWith(year)) && (type === 'all' || s.type === type)
-    && (!withStakes || stakes === 'all' || (s.type === stakesType() && stakesKey(s) === stakes)))
+    && (!withStakes || stakes === 'all' || (s.type === stakesType() && stakesKey(s) === stakes)) && picked(s, except))
     .sort((a, b) => a.date.localeCompare(b.date));
 }
 // The cash stakes (or, under Tournaments, the events) played in the chosen year, smallest blinds first.
 function stakesOptions() {
   const m = new Map();
-  filtered(false).forEach(s => { const k = stakesKey(s); if (k && s.type === stakesType() && !m.has(k)) m.set(k, s.stakes.trim()); });
+  filtered(false, 'all').forEach(s => { const k = stakesKey(s); if (k && s.type === stakesType() && !m.has(k)) m.set(k, s.stakes.trim()); });
   const nums = l => (l.match(/\d*\.?\d+/g) || []).map(Number);
   return [...m].sort(([, a], [, b]) => {
     const x = nums(a), y = nums(b);
@@ -539,8 +550,9 @@ function dashView() {
   if (S.filters.stakes !== 'all' && !stakes.some(([k]) => k === S.filters.stakes)) S.filters.stakes = 'all';
   const rows = filtered();
   const t = rows.reduce((a, s) => { const c = calc(s); a.net += c.net; a.hours += s.hours; a.win += c.net > 0 ? 1 : 0; a.mil += c.mileage; a.exp += s.expenses; a.tips += s.tips; return a; }, { net: 0, hours: 0, win: 0, mil: 0, exp: 0, tips: 0 });
-  const picked = stakes.find(([k]) => k === S.filters.stakes);
-  const scope = (S.filters.year === 'all' ? 'All time' : S.filters.year) + (S.filters.type === 'all' ? '' : ` · ${S.filters.type === 'Cash' ? 'Cash games' : 'Tournaments'}`) + (picked ? ` · ${picked[1]}` : '');
+  const chosen = stakes.find(([k]) => k === S.filters.stakes);
+  const scope = (S.filters.year === 'all' ? 'All time' : S.filters.year) + (S.filters.type === 'all' ? '' : ` · ${S.filters.type === 'Cash' ? 'Cash games' : 'Tournaments'}`) + (chosen ? ` · ${chosen[1]}` : '')
+    + Object.values(S.picks).map(p => ` · ${p.label}`).join('');
   return `
     <div class="filters">
       <select class="input" id="fy" aria-label="Year"><option value="all">All years</option>${years.map(y => `<option ${S.filters.year === y ? 'selected' : ''}>${y}</option>`).join('')}</select>
@@ -550,6 +562,7 @@ function dashView() {
       <div class="seg" role="group" aria-label="Top chart">
         ${[['line', 'Running total'], ['month', 'Monthly Buckets']].map(([v, l]) => `<button data-chart="${v}" aria-pressed="${S.chart === v}">${l}</button>`).join('')}
       </div>
+      ${Object.entries(S.picks).map(([n, p]) => `<button class="btn small pick" data-unpick="${n}" aria-label="Remove ${PICKS[n].name()} filter">${PICKS[n].name()}: ${esc(p.label)} <span aria-hidden="true">✕</span></button>`).join('')}
       ${stakes.length ? `<select class="input" id="fs" aria-label="Stakes"><option value="all">${S.filters.type === 'Tournament' ? 'All events' : 'All stakes'}</option>${stakes.map(([k, l]) => `<option value="${esc(k)}" ${S.filters.stakes === k ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select>` : ''}
     </div>
     <div class="hero">
@@ -565,16 +578,18 @@ function dashView() {
     </div>
     ${rows.length ? `<div class="charts">
       <section class="panel wide"><header><h2>${S.chart === 'month' ? 'Monthly Buckets' : 'Running total'}</h2><span class="hint">${S.chart === 'month' ? 'Net profit each month' : 'Net profit after each session'}</span></header><div class="chart" id="cRun"></div></section>
-      <section class="panel wide"><header><h2>By game type</h2><span class="hint">${S.filters.type === 'Tournament' ? 'Net and per hour, by event' : 'Net and per hour, by stakes'}</span></header><div class="chart" id="cGame"></div></section>
-      <section class="panel"><header><h2>By venue</h2><span class="hint">Net profit</span></header><div class="chart" id="cVenue"></div></section>
-      <section class="panel"><header><h2>${S.filters.year === 'all' ? 'By year' : 'By month'}</h2><span class="hint">Net profit</span></header><div class="chart" id="cYear"></div></section>
+      <section class="panel wide"><header><h2>By game type</h2><span class="hint">${S.filters.type === 'Tournament' ? 'Net and per hour, by event' : 'Net and per hour, by stakes'} · tap a bar to filter</span></header><div class="chart" id="cGame"></div></section>
+      <section class="panel"><header><h2>By venue</h2><span class="hint">Net profit · tap to filter</span></header><div class="chart" id="cVenue"></div></section>
+      <section class="panel"><header><h2>${S.filters.year === 'all' ? 'By year' : 'By month'}</h2><span class="hint">Net profit · tap to filter</span></header><div class="chart" id="cYear"></div></section>
       <section class="panel wide"><header><h2>By session length</h2><span class="hint">Average net per session</span></header><div class="chart" id="cHours"></div></section>
     </div>` : `<div class="empty"><p class="muted" style="margin:0">No sessions match these filters.</p></div>`}`;
 }
 function bindDash() {
   const g = $('#goLog'); if (g) { g.onclick = () => { S.tab = 'log'; render(); }; return; }
-  $('#fy').onchange = e => { S.filters.year = e.target.value; render(); };
-  $$('[data-type]').forEach(b => b.onclick = () => { S.filters.type = b.dataset.type; render(); });
+  // A year pick turns into months, and game picks are named by game type, so those changes drop them.
+  $('#fy').onchange = e => { S.filters.year = e.target.value; delete S.picks.period; render(); };
+  $$('[data-type]').forEach(b => b.onclick = () => { S.filters.type = b.dataset.type; delete S.picks.game; render(); });
+  $$('[data-unpick]').forEach(b => b.onclick = () => { delete S.picks[b.dataset.unpick]; render(); });
   $$('[data-chart]').forEach(b => b.onclick = () => { S.chart = b.dataset.chart; render(); });
   const fs = $('#fs'); if (fs) fs.onchange = e => { S.filters.stakes = e.target.value; render(); };
   drawCharts();
@@ -598,20 +613,15 @@ function drawCharts() {
     lineChart($('#cRun'), pts);
   }
   // by game type: cash games split by stakes, tournaments together unless only tournaments are shown
-  const byG = group(rows, s => s.type === 'Tournament'
-    ? (S.filters.type === 'Tournament' ? s.stakes.trim() || 'No event name' : 'Tournaments')
-    : (s.stakes.trim() ? `Cash ${s.stakes.trim()}` : 'Cash, no stakes'));
-  barsH($('#cGame'), byG.sort((a, b) => b.net - a.net), S.filters.type === 'Tournament' ? 'events' : 'games',
-    it => `${esc(it.label)}<br><b>${money(it.net, true)}</b> · ${it.n} session${it.n === 1 ? '' : 's'}${it.hours ? ` · ${money(it.net / it.hours, true)}/h` : ''}`, true);
+  const byG = group(filtered(true, 'game'), PICKS.game.key);
+  pickable($('#cGame'), 'game', barsH($('#cGame'), byG.sort((a, b) => b.net - a.net), S.filters.type === 'Tournament' ? 'events' : 'games',
+    it => `${esc(it.label)}<br><b>${money(it.net, true)}</b> · ${it.n} session${it.n === 1 ? '' : 's'}${it.hours ? ` · ${money(it.net / it.hours, true)}/h` : ''}`, true));
   // by venue
-  const byV = group(rows, s => s.venue || 'Unknown');
-  barsH($('#cVenue'), byV.sort((a, b) => b.net - a.net));
+  const byV = group(filtered(true, 'venue'), PICKS.venue.key);
+  pickable($('#cVenue'), 'venue', barsH($('#cVenue'), byV.sort((a, b) => b.net - a.net)));
   // by year or month
-  if (S.filters.year === 'all') barsV($('#cYear'), group(rows, s => s.date.slice(0, 4)).sort((a, b) => a.key.localeCompare(b.key)));
-  else {
-    const g = group(rows, s => s.date.slice(5, 7));
-    barsV($('#cYear'), g.sort((a, b) => a.key.localeCompare(b.key)).map(x => ({ ...x, label: MONTHS[+x.key - 1] })));
-  }
+  const byP = group(filtered(true, 'period'), PICKS.period.key).sort((a, b) => a.key.localeCompare(b.key));
+  pickable($('#cYear'), 'period', barsV($('#cYear'), S.filters.year === 'all' ? byP : byP.map(x => ({ ...x, label: MONTHS[+x.key - 1] }))));
   // by length
   const buckets = [['Under 2h', 0, 2], ['2–4h', 2, 4], ['4–6h', 4, 6], ['6–8h', 6, 8], ['8h+', 8, 1e9]];
   const hb = buckets.map(([label, lo, hi]) => {
@@ -620,6 +630,22 @@ function drawCharts() {
     return { key: label, label, n: r.length, net: r.length ? net / r.length : 0, total: net };
   }).filter(b => b.n);
   barsV($('#cHours'), hb, b => `${b.label}: <b>${money(b.net, true)}</b> avg · ${b.n} session${b.n === 1 ? '' : 's'}`);
+}
+// Lets each bar of a chart set or clear that chart's pick, and dims the bars that aren't picked.
+function pickable(el, name, items) {
+  const cur = S.picks[name];
+  $$('g.bar', el).forEach(g => {
+    const it = items[+g.dataset.i];
+    if (it.key === 'other') return;
+    const id = it.key.toLowerCase();
+    g.dataset.base = cur && cur.id !== id ? .35 : 1;
+    g.style.opacity = g.dataset.base;
+    g.style.cursor = 'pointer';
+    g.addEventListener('click', () => {
+      if (cur && cur.id === id) delete S.picks[name]; else S.picks[name] = { id, label: it.label };
+      render();
+    });
+  });
 }
 function group(rows, keyFn) {
   const m = new Map();
@@ -707,14 +733,30 @@ function barsH(el, items, noun = 'venues', tipFn, perHour) {
         <rect x="0" y="${y}" width="${W}" height="${rowH}" fill="transparent"/>
         <text x="${labW}" y="${y + rowH / 2 + 4}" text-anchor="end" style="fill:var(--ink)">${esc(lab)}</text>
         <rect x="${bx}" y="${y + 6}" width="${bw}" height="${rowH - 12}" rx="3" fill="${it.net >= 0 ? 'var(--win)' : 'var(--loss)'}"/>
+        ${countH(it.n, bx, bw, y + rowH / 2 + 3.5, it.net >= 0)}
         <text x="${perHour ? W - 58 : W}" y="${y + rowH / 2 + 4}" text-anchor="end" class="num" style="fill:var(--ink);font-family:var(--font-num)">${short(it.net)}</text>
         ${perHour ? `<text x="${W}" y="${y + rowH / 2 + 4}" text-anchor="end" class="num" style="font-family:var(--font-num)">${it.hours ? short(it.net / it.hours) + '/h' : '—'}</text>` : ''}
       </g>`;
     }).join('')}
   </svg>`;
   bindBarTips(el, list, tipFn || (it => `${esc(it.label)}<br><b>${money(it.net, true)}</b> · ${it.n} session${it.n === 1 ? '' : 's'}`), W, H, (i) => [W / 2, T + i * rowH + 4]);
+  return list;
 }
 
+// The session count inside a horizontal bar, or just past its end when the bar is too short to hold it.
+function countH(n, bx, bw, y, up) {
+  if (!n) return '';
+  const fits = bw >= String(n).length * 6.5 + 10;
+  const x = fits ? (up ? bx + bw - 5 : bx + 5) : (up ? bx + bw + 4 : bx - 4);
+  return `<text x="${x}" y="${y}" text-anchor="${fits === up ? 'end' : 'start'}" class="count"${fits ? ' style="fill:var(--surface)"' : ''}>${n}</text>`;
+}
+// The session count inside a vertical bar, or just across the zero line when the bar is too short to hold it.
+function countV(n, cx, bw, top, h, zero, up) {
+  if (!n || bw < 14) return '';
+  const fits = h >= 16;
+  const y = fits ? (up ? top + 12 : top + h - 5) : (up ? zero + 12 : zero - 4);
+  return `<text x="${cx}" y="${y}" text-anchor="middle" class="count"${fits ? ' style="fill:var(--surface)"' : ''}>${n}</text>`;
+}
 function barsV(el, items, tipFn) {
   const W = Math.max(el.clientWidth, 260), H = 190, L = 46, R = 8, T = 18, B = 24;
   const ticks = niceTicks(Math.min(0, ...items.map(x => x.net)), Math.max(0, ...items.map(x => x.net)), 4);
@@ -731,6 +773,7 @@ function barsV(el, items, tipFn) {
       return `<g data-i="${i}" class="bar">
         <rect x="${cx - slot / 2}" y="${T}" width="${slot}" height="${H - T - B}" fill="transparent"/>
         <rect x="${cx - bw / 2}" y="${top}" width="${bw}" height="${h}" rx="3" fill="${it.net >= 0 ? 'var(--win)' : 'var(--loss)'}"/>
+        ${countV(it.n, cx, bw, top, h, Y(0), it.net >= 0)}
         ${items.length <= 8 ? `<text x="${cx}" y="${ly}" text-anchor="middle" style="fill:var(--ink);font-family:var(--font-num);font-size:10.5px">${short(it.net)}</text>` : ''}
         ${i % every === 0 ? `<text x="${cx}" y="${H - 6}" text-anchor="middle">${esc(it.axis ?? it.label)}</text>` : ''}
       </g>`;
@@ -738,13 +781,14 @@ function barsV(el, items, tipFn) {
   </svg>`;
   bindBarTips(el, items, tipFn || (it => `${esc(it.label)}<br><b>${money(it.net, true)}</b> · ${it.n} session${it.n === 1 ? '' : 's'}${it.hours ? ` · ${it.hours ? money(it.net / it.hours, true) + '/h' : ''}` : ''}`), W, H,
     i => [L + slot * (i + .5), Math.min(Y(0), Y(items[i].net))]);
+  return items;
 }
 function bindBarTips(el, items, fn, W, H, anchor) {
   const svg = $('svg', el);
   $$('g.bar', el).forEach(g => {
     const show = () => { const i = +g.dataset.i, r = svg.getBoundingClientRect(), [ax, ay] = anchor(i); g.style.opacity = 1; $$('g.bar', el).forEach(o => o !== g && (o.style.opacity = .55)); tipAt(el, ax * r.width / W, ay * r.height / H, fn(items[i])); };
     g.addEventListener('pointerenter', show); g.addEventListener('pointerdown', show);
-    g.addEventListener('pointerleave', () => { $$('g.bar', el).forEach(o => (o.style.opacity = 1)); hideTip(el); });
+    g.addEventListener('pointerleave', () => { $$('g.bar', el).forEach(o => (o.style.opacity = o.dataset.base || 1)); hideTip(el); });
   });
 }
 
