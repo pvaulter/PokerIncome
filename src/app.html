@@ -68,6 +68,8 @@ button, input, select, textarea { font: inherit; color: inherit; }
 input.input[type="date"] { -webkit-appearance: none; appearance: none; display: block; max-width: 100%; min-height: 46px; }
 input.input[type="date"]::-webkit-date-and-time-value { text-align: left; }
 textarea.input { min-height: 70px; resize: vertical; }
+/* iPhone Safari zooms the page in on any field under 16px when it's tapped, and stays zoomed; 16px on touch screens stops that. */
+@media (pointer: coarse) { input, select, textarea, .input { font-size: 16px !important; } }
 .hint { font-size: .8rem; color: var(--muted); }
 .error { color: var(--loss); font-size: .88rem; font-weight: 500; }
 .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-items: start; }
