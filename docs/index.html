@@ -128,6 +128,15 @@ textarea.input { min-height: 70px; resize: vertical; }
 /* Dashboard */
 .filters { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-bottom: 16px; }
 .filters select { width: auto; padding: 8px 12px; border-radius: 999px; }
+/* Two rows: year + game type, then chart + stakes. On phones they shrink to stay one line each. */
+.frow { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+@media (max-width: 520px) {
+  .filters { gap: 8px; }
+  .frow { gap: 6px; flex-wrap: nowrap; width: 100%; }
+  .frow .seg button { padding: 6px 9px; font-size: .8rem; white-space: nowrap; }
+  .frow select.input { padding: 6px 26px 6px 10px; font-size: 16px; min-width: 0; flex: 0 1 auto; }
+}
+@media (max-width: 380px) { .frow .seg button { padding: 6px 6px; } }
 .hero { display: grid; gap: 4px; margin-bottom: 16px; }
 .hero .big { font-family: var(--font-display); font-weight: 700; font-size: clamp(2.4rem, 9vw, 3.4rem); line-height: 1; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; }
 .stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: var(--r); overflow: hidden; margin-bottom: 22px; }
@@ -710,15 +719,19 @@ function dashView() {
     + Object.values(S.picks).map(p => ` · ${p.label}`).join('');
   return `
     <div class="filters">
+      <div class="frow">
       <select class="input" id="fy" aria-label="Year"><option value="all">All years</option>${years.map(y => `<option ${S.filters.year === y ? 'selected' : ''}>${y}</option>`).join('')}</select>
       <div class="seg" role="group" aria-label="Game type">
-        ${[['all', 'All games'], ['Cash', 'Cash'], ['Tournament', 'Tournaments']].map(([v, l]) => `<button data-type="${v}" aria-pressed="${S.filters.type === v}">${l}</button>`).join('')}
+        ${[['all', 'All games'], ['Cash', 'Cash'], ['Tournament', 'Tourney']].map(([v, l]) => `<button data-type="${v}" aria-pressed="${S.filters.type === v}">${l}</button>`).join('')}
       </div>
+      </div>
+      <div class="frow">
       <div class="seg" role="group" aria-label="Top chart">
         ${[['line', 'Running total'], ['month', 'Monthly Buckets']].map(([v, l]) => `<button data-chart="${v}" aria-pressed="${S.chart === v}">${l}</button>`).join('')}
       </div>
-      ${Object.entries(S.picks).map(([n, p]) => `<button class="btn small pick" data-unpick="${n}" aria-label="Remove ${PICKS[n].name()} filter">${PICKS[n].name()}: ${esc(p.label)} <span aria-hidden="true">✕</span></button>`).join('')}
       ${stakes.length ? `<select class="input" id="fs" aria-label="Stakes"><option value="all">${S.filters.type === 'Tournament' ? 'All events' : 'All stakes'}</option>${stakes.map(([k, l]) => `<option value="${esc(k)}" ${S.filters.stakes === k ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select>` : ''}
+      </div>
+      ${Object.entries(S.picks).map(([n, p]) => `<button class="btn small pick" data-unpick="${n}" aria-label="Remove ${PICKS[n].name()} filter">${PICKS[n].name()}: ${esc(p.label)} <span aria-hidden="true">✕</span></button>`).join('')}
     </div>
     <div class="hero">
       <span class="label">Net profit · ${esc(scope)}</span>
