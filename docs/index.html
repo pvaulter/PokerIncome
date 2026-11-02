@@ -210,6 +210,8 @@ textarea.backup { font-family: var(--font-num); font-size: .75rem; min-height: 1
 .lead { display: inline-block; font-size: .72rem; font-weight: 700; padding: 2px 8px; border-radius: 99px; background: color-mix(in srgb, var(--accent) 16%, var(--surface)); color: var(--accent); }
 .opts { display: grid; gap: 8px; }
 .opt { display: grid; grid-template-columns: 20px 1fr; gap: 10px; padding: 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); text-align: left; cursor: pointer; }
+.opt.plain { cursor: default; grid-template-columns: 22px 1fr; }
+.lead.silver { background: color-mix(in srgb, #8a96a3 20%, var(--surface)); color: var(--ink); }
 .opt[aria-checked="true"] { border-color: var(--accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 25%, transparent); }
 .opt .dot { width: 18px; height: 18px; border-radius: 50%; border: 2px solid var(--muted); margin-top: 2px; }
 .opt[aria-checked="true"] .dot { border: 6px solid var(--accent); }
@@ -956,12 +958,6 @@ function bindBarTips(el, items, fn, W, H, anchor) {
 // A member challenges a friend for a week, a month or a year. The server scores both from their saved sessions
 // (src/challenges.ts in the site repo); each sees only the other's challenge numbers, never venues, notes or
 // dollar amounts. Big blinds per hour is the default so a 1/3 player and a 5/5 player compete fairly.
-const CH_METRICS = {
-  bbh: { name: 'Big blinds per hour', tag: 'Fair across stakes', about: 'Cash games. Profit ÷ big blind ÷ hours, so 1/3 and 5/5 players compare fairly. 10 hours to qualify.' },
-  roi: { name: 'Tournament ROI', about: 'Profit ÷ buy-ins, so a $100 and a $1,000 event compare fairly. 3 events to qualify.' },
-  hours: { name: 'Most hours played', about: 'Rewards putting in the volume.' },
-  sessions: { name: 'Most sessions logged', about: 'Rewards logging every session.' },
-};
 const CH = { list: null, at: 0, loading: false, error: '', form: null, join: null, joinCode: '' };
 const shortDate = iso => { const [, m, d] = iso.split('-').map(Number); return `${MONTHS[m - 1]} ${d}`; };
 const isoAdd = (iso, n) => { const d = new Date(iso + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
@@ -983,9 +979,11 @@ function chScore(metric, v) {
   return `${v} session${v === 1 ? '' : 's'}`;
 }
 function chDetail(c, p) {
-  const bits = c.metric === 'roi' ? [`${p.events} event${p.events === 1 ? '' : 's'}`] : [`${hrs(p.hours)} h`, `${p.sessions} session${p.sessions === 1 ? '' : 's'}`];
+  const bits = c.metric === 'roi' ? [`${p.events} event${p.events === 1 ? '' : 's'}`]
+    : c.metric === 'bbh' ? [`${hrs(p.totalHours ?? p.hours)} h played`, `${p.sessions} cash session${p.sessions === 1 ? '' : 's'}`]
+    : [`${hrs(p.hours)} h`, `${p.sessions} session${p.sessions === 1 ? '' : 's'}`];
   if (p.stakes.length) bits.push(p.stakes.join(', '));
-  if (!p.qualified) bits.push(c.metric === 'roi' ? `${c.qualify - p.events} more to qualify` : `${hrs(c.qualify - p.hours)} more h to qualify`);
+  if (!p.qualified) bits.push(c.metric === 'roi' ? `${c.qualify - p.events} more to qualify` : `${hrs(c.qualify - p.hours)} more cash h to qualify`);
   return bits.join(' · ');
 }
 const chLink = code => `${location.origin}${location.pathname}#join?c=${code}`;
@@ -1014,15 +1012,19 @@ function chalHTML() {
   if (CH.form) return chFormHTML();
   if (!CH.list) return CH.error ? `<p class="hint">${esc(CH.error)}</p>` : '';
   const live = CH.list.filter(c => c.status !== 'over'), done = CH.list.filter(c => c.status === 'over');
-  const won = done.filter(c => c.players.length === 2 && c.leaders.length === 1 && c.leaders[0] === c.players[0].name).length;
-  const lost = done.filter(c => c.players.length === 2 && c.leaders.length === 1 && c.leaders[0] !== c.players[0].name).length;
+  // Who's ahead comes as a mark on each player (two players can share a first name).
+  const sole = (c, k) => c.players.filter(p => p[k]).length === 1 ? c.players.find(p => p[k]) : null;
+  const won = done.filter(c => sole(c, 'leading')?.you).length;
+  const lost = done.filter(c => sole(c, 'leading') && !sole(c, 'leading').you).length;
   return live.map(chCardHTML).join('') + `
     <section class="panel"><header><h2>${done.length ? 'Past challenges' : 'Challenge a friend'}</h2><button class="btn primary small" data-ch="new">＋ New challenge</button></header>
       ${CH.list.length ? '' : '<p class="sub" style="margin:0">Challenge a friend for a week, a month or a year. Scored in big blinds per hour, so any stakes compete fairly.</p>'}
       ${done.slice(0, 8).map(c => {
         const o = chOpponent(c), me = c.players[0];
-        const result = c.leaders.length === 2 ? 'Tie' : c.leaders.length ? (c.leaders[0] === me.name ? '🏆 <b>You won</b>' : `<b>${esc(c.leaders[0])} won</b>`) : 'No winner';
-        return `<div class="past"><span>${chSpan(c)} vs ${esc(o ? o.name : 'nobody')}<div class="sub">${esc(c.metricName)}${c.endedEarly ? ' · ended early' : ''}</div></span>
+        const w = sole(c, 'leading'), mh = sole(c, 'mostHours');
+        const result = c.players.filter(p => p.leading).length === 2 ? 'Tie' : w ? (w.you ? '🏆 <b>You won</b>' : `<b>${esc(w.name)} won</b>`) : 'No winner';
+        const h = mh ? ` · 🥈 ${mh.you ? 'You' : esc(mh.name)}: most hours` : '';
+        return `<div class="past"><span>${chSpan(c)} vs ${esc(o ? o.name : 'nobody')}<div class="sub">${esc(c.metricName)}${c.endedEarly ? ' · ended early' : ''}${h}</div></span>
           <span>${result}<div class="sub">${chScore(c.metric, me.value)} vs ${o ? chScore(c.metric, o.value) : '—'}</div></span></div>`;
       }).join('')}
       ${done.length ? `<div class="sub">Record: ${won} win${won === 1 ? '' : 's'} · ${lost} loss${lost === 1 ? '' : 'es'}</div>` : ''}
@@ -1031,7 +1033,8 @@ function chalHTML() {
 function chCardHTML(c) {
   const today = todayISO(), left = Math.round((new Date(c.end) - new Date(today)) / 864e5) + 1;
   const when = `${chSpan(c)} · ${left <= 0 ? 'last day' : left === 1 ? '1 day left' : `${left} days left`}`;
-  const rules = `${esc(c.metricName)}${c.qualify ? ` · at least ${c.qualify} ${c.metric === 'roi' ? 'events' : 'hours'} to qualify` : ''}`;
+  const rules = c.metric === 'bbh' ? `🏆 Big blinds per hour (${c.qualify} cash hours to qualify) · 🥈 Most hours played`
+    : `${esc(c.metricName)}${c.qualify ? ` · at least ${c.qualify} ${c.metric === 'roi' ? 'events' : 'hours'} to qualify` : ''}`;
   if (c.status === 'pending') return `
     <section class="panel"><header><h2>Challenge waiting for a friend</h2><span class="hint">${when}</span></header>
       <div class="sub">${rules}</div>
@@ -1040,7 +1043,8 @@ function chCardHTML(c) {
     </section>`;
   const o = chOpponent(c), top = Math.max(...c.players.map(p => Math.max(0, p.value || 0)), 0.0001);
   const row = (p, i) => `<div class="who-row"><div class="av" style="background:var(${i ? '--rival' : '--accent'})">${esc(p.name[0] || '?')}</div>
-      <div><b>${p.you ? 'You' : esc(p.name)}</b> ${c.leaders.length === 1 && c.leaders[0] === p.name ? '<span class="lead">Leading</span>' : ''}
+      <div><b>${p.you ? 'You' : esc(p.name)}</b> ${p.leading && c.players.filter(x => x.leading).length === 1 ? `<span class="lead">${c.status === 'over' ? '🏆 Won' : 'Leading'}</span>` : ''}
+        ${p.mostHours && c.players.filter(x => x.mostHours).length === 1 ? `<span class="lead silver">🥈 Most hours</span>` : ''}
         <div class="sub">${esc(chDetail(c, p))}</div><div class="vbar"><i style="width:${Math.round(100 * Math.max(0, p.value || 0) / top)}%;background:var(${i ? '--rival' : '--accent'})"></i></div></div>
       <div class="score ${c.metric === 'bbh' || c.metric === 'roi' ? cls(p.value || 0) : ''}">${chScore(c.metric, p.value)}</div></div>`;
   return `
@@ -1082,21 +1086,22 @@ function drawRace(el, c) {
 function chFormHTML() {
   const f = CH.form, start = todayISO(), end = chEnd(start, f.length);
   if (f.code) return `
-    <section class="panel"><header><h2>Send this to your friend</h2><span class="hint">${esc(CH_METRICS[f.metric].name)} · ${shortDate(start)} – ${shortDate(end)}</span></header>
+    <section class="panel"><header><h2>Send this to your friend</h2><span class="hint">${shortDate(start)} – ${shortDate(end)}</span></header>
       <div class="invlink">${esc(chLink(f.code))}</div>
       <div class="actions"><button class="btn primary small" data-ch="share" data-code="${f.code}">Share…</button><button class="btn small" data-ch="copy" data-code="${f.code}">Copy link</button><button class="btn small" data-ch="done">Done</button></div>
       <div class="sub">They only see the challenge score. Your sessions, venues and notes stay private.</div>
     </section>`;
   return `
     <section class="panel"><header><h2>New challenge</h2><button class="btn small" data-ch="cancel">Cancel</button></header>
-      <div class="sub" style="margin-top:-4px">Pick the rules, then send the link to a friend.</div>
+      <div class="sub" style="margin-top:-4px">Pick how long, then send the link to a friend.</div>
       <span class="label">How long</span>
       <div class="seg" role="group" aria-label="How long" style="justify-self:start">${[['week', 'Week'], ['month', 'Month'], ['year', 'Year']].map(([v, l]) => `<button data-len="${v}" aria-pressed="${f.length === v}">${l}</button>`).join('')}</div>
       <div class="sub">Starts today (${shortDate(start)}) and ends ${fmtDate(end)}.</div>
-      <span class="label">What counts</span>
-      <div class="opts" role="radiogroup" aria-label="What counts">${Object.entries(CH_METRICS).map(([k, m]) => `
-        <button type="button" class="opt" role="radio" data-metric="${k}" aria-checked="${f.metric === k}"><span class="dot"></span>
-          <span><b>${m.name}${m.tag ? ` <span class="lead">${m.tag}</span>` : ''}</b><span class="sub">${m.about}</span></span></button>`).join('')}</div>
+      <span class="label">Two trophies</span>
+      <div class="opts">
+        <div class="opt plain"><span aria-hidden="true">🏆</span><span><b>Big blinds per hour <span class="lead">Fair across stakes</span></b><span class="sub">Cash games: (cash out − buy-in) ÷ big blind ÷ hours, so 1/3 and 5/5 players compare fairly. 10 cash hours to qualify.</span></span></div>
+        <div class="opt plain"><span aria-hidden="true">🥈</span><span><b>Most hours played</b><span class="sub">Every hour you play in the challenge, any game.</span></span></div>
+      </div>
       ${f.error ? `<p class="error" style="margin:0">${esc(f.error)}</p>` : ''}
       <button class="btn primary block" data-ch="create" ${f.busy ? 'disabled' : ''}>${f.busy ? 'Creating…' : 'Create invite link'}</button>
     </section>`;
@@ -1106,14 +1111,13 @@ function bindChal() {
   const redraw = () => { box.innerHTML = chalHTML(); bindChal(); };
   (CH.list || []).forEach(c => { const el = $(`[data-race="${c.code}"]`, box); if (el) drawRace(el, c); });
   $$('[data-len]', box).forEach(b => b.onclick = () => { CH.form.length = b.dataset.len; redraw(); });
-  $$('[data-metric]', box).forEach(b => b.onclick = () => { CH.form.metric = b.dataset.metric; redraw(); });
   $$('[data-ch]', box).forEach(b => b.onclick = async () => {
     const act = b.dataset.ch, code = b.dataset.code;
-    if (act === 'new') { CH.form = { length: 'month', metric: 'bbh' }; redraw(); box.scrollIntoView({ block: 'start', behavior: 'smooth' }); }
+    if (act === 'new') { CH.form = { length: 'month' }; redraw(); box.scrollIntoView({ block: 'start', behavior: 'smooth' }); }
     else if (act === 'cancel' || act === 'done') { CH.form = null; redraw(); refreshChallenges(true); }
     else if (act === 'create') {
       CH.form.busy = true; CH.form.error = ''; redraw();
-      try { const r = await chFetch('', { method: 'POST', body: JSON.stringify({ metric: CH.form.metric, length: CH.form.length, start: todayISO() }) }); CH.form.code = r.code; }
+      try { const r = await chFetch('', { method: 'POST', body: JSON.stringify({ length: CH.form.length, start: todayISO() }) }); CH.form.code = r.code; }
       catch (e) { CH.form.error = e.message; }
       CH.form.busy = false; redraw();
     } else if (act === 'copy') {
@@ -1160,7 +1164,7 @@ function joinView() {
   const j = CH.join;
   if (!j) return `<div class="empty"><p class="muted" style="margin:0">Loading the challenge…</p></div>`;
   if (j.error) return `<div class="empty"><h2>Can’t open this challenge</h2><p class="muted" style="margin:0">${esc(j.error)}</p><button class="btn primary" data-join="home">Go to Results</button></div>`;
-  const rules = `${shortDate(j.start)} – ${shortDate(j.end)}${j.qualify ? ` · at least ${j.qualify} ${j.metric === 'roi' ? 'events' : 'hours'} to qualify` : ''}`;
+  const rules = `${shortDate(j.start)} – ${shortDate(j.end)}${j.qualify ? ` · at least ${j.qualify} ${j.metric === 'roi' ? 'events' : 'cash hours'} to qualify` : ''}`;
   const note = j.yours ? 'This is your own challenge. Send the link to a friend to start it.'
     : j.joined ? 'You’re in. Follow the score on Results.'
     : j.taken ? 'Someone already accepted this challenge.'
@@ -1168,7 +1172,7 @@ function joinView() {
   return `<section class="panel invite">
       <div class="trophy" aria-hidden="true">🏆</div>
       <h1>${j.yours ? 'Your challenge' : `${esc(j.from)} challenged you`}</h1>
-      <b>${esc(j.metricName)}</b>
+      <b>${j.metric === 'bbh' ? '🏆 Big blinds per hour · 🥈 Most hours' : esc(j.metricName)}</b>
       <span class="muted">${rules}</span>
       ${note ? `<p class="muted" style="margin:0">${note}</p>` : `<p class="muted" style="margin:0;font-size:.9rem">You’ll each see only the other’s ${j.metric === 'bbh' ? 'big blinds per hour' : 'score'}, hours and session count for this challenge. Your sessions, venues, notes and overall results stay private.</p>`}
       ${note ? '<button class="btn primary block" data-join="home">Go to Results</button>'
