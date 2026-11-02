@@ -302,7 +302,9 @@ const rateFor = (rates, date) => {
 };
 
 /* ---------- app state ---------- */
-const S = { user: null, key: null, data: null, tab: 'dashboard', editing: null, filters: { year: 'all', type: 'all', stakes: 'all' }, picks: {}, chart: 'line', q: '' };
+// Results opens on the current year (YTD); "All years" is still one pick away.
+const THIS_YEAR = String(new Date().getFullYear());
+const S = { user: null, key: null, data: null, tab: 'dashboard', editing: null, filters: { year: THIS_YEAR, type: 'all', stakes: 'all' }, picks: {}, chart: 'line', q: '' };
 
 async function persist() {
   await saveLocal();
@@ -507,7 +509,7 @@ let shownLink = location.hash;
 function linkFor() {
   const p = new URLSearchParams();
   if (S.tab === 'dashboard') {
-    Object.entries(S.filters).forEach(([k, v]) => v !== 'all' && p.set(k, v));
+    Object.entries(S.filters).forEach(([k, v]) => (k === 'year' ? v !== THIS_YEAR : v !== 'all') && p.set(k, v));
     if (S.chart !== 'line') p.set('chart', S.chart);
     // Game and venue picks are named as shown; a year or month pick by its key ("2025", "03").
     Object.entries(S.picks).forEach(([k, v]) => p.set(k, k === 'period' ? v.id : v.label));
@@ -530,7 +532,7 @@ function applyLink() {
   const p = new URLSearchParams(q), type = p.get('type');
   Object.assign(S, {
     tab, editing: null, chart: p.get('chart') === 'month' ? 'month' : 'line', picks: {},
-    filters: { year: /^\d{4}$/.test(p.get('year')) ? p.get('year') : 'all', type: type === 'Cash' || type === 'Tournament' ? type : 'all', stakes: p.get('stakes') || 'all' },
+    filters: { year: /^(\d{4}|all)$/.test(p.get('year')) ? p.get('year') : THIS_YEAR, type: type === 'Cash' || type === 'Tournament' ? type : 'all', stakes: p.get('stakes') || 'all' },
   });
   Object.keys(PICKS).forEach(k => {
     const v = p.get(k); if (!v) return;
@@ -628,7 +630,7 @@ function dashView() {
       <h2>No sessions yet</h2>
       <p class="muted" style="margin:0;max-width:36ch">Log your first session and your profit, hourly rate and best venues show up here. Moving from another device? Import a backup from Account.</p>
       <button class="btn primary" id="goLog">Log a session</button></div>`;
-  const years = [...new Set(all.map(s => s.date.slice(0, 4)))].sort().reverse();
+  const years = [...new Set([THIS_YEAR, ...all.map(s => s.date.slice(0, 4))])].sort().reverse();
   const stakes = stakesOptions();
   if (S.filters.stakes !== 'all' && !stakes.some(([k]) => k === S.filters.stakes)) S.filters.stakes = 'all';
   const rows = filtered();
