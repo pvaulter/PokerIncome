@@ -7,7 +7,8 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
-<link rel="apple-touch-icon" href="icon.svg">
+<link rel="apple-touch-icon" href="icon-180.png">
+<meta name="apple-mobile-web-app-title" content="Poker Income">
 <style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}[hidden]{display:none!important}</style>
 <title>Poker Income</title>
 <meta name="claude:viewport-fit-sides" content="cover">
@@ -67,11 +68,17 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .btn.danger.solid { background: var(--loss); border-color: var(--loss); color: #fff; }
 .btn.block { width: 100%; }
 .btn.small { padding: 6px 12px; font-size: .85rem; }
+.install { display: flex; align-items: center; gap: 12px; margin: 14px 0; padding: 12px 14px; border-radius: var(--r); background: color-mix(in srgb, var(--accent) 10%, var(--surface)); border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--line)); }
+.install p { margin: 0; flex: 1; font-size: .9rem; }
+.install .acts { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
 .field { display: grid; gap: 6px; min-width: 0; }
 .field > span, .field > label { font-size: .8rem; font-weight: 600; color: var(--muted); }
 .input[hidden] { display: none; }
 .input { width: 100%; border: 1px solid var(--line); background: var(--surface); border-radius: 8px; padding: 11px 12px; min-width: 0; }
 .input:focus { border-color: var(--accent); outline: none; box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 25%, transparent); }
+/* iPhone Safari gives date fields a fixed native width that spills into the next column; let them fit their cell. */
+input.input[type="date"] { -webkit-appearance: none; appearance: none; display: block; max-width: 100%; min-height: 46px; }
+input.input[type="date"]::-webkit-date-and-time-value { text-align: left; }
 textarea.input { min-height: 70px; resize: vertical; }
 .hint { font-size: .8rem; color: var(--muted); }
 .error { color: var(--loss); font-size: .88rem; font-weight: 500; }
@@ -406,6 +413,7 @@ async function signIn(name, pw, remember) {
 }
 async function enter(name, key, data, remember) {
   Object.assign(S, { user: name, key, data, tab: 'dashboard', editing: null });
+  applyLink();
   if (remember) { await idb.put(name.toLowerCase(), key); ls.set(REMEMBER_KEY, name.toLowerCase()); }
   render();
 }
@@ -449,7 +457,7 @@ const ICON = {
 
 function render() {
   const app = $('#app');
-  if (!S.user && SITE_SIGNIN) { location.replace(`${SITE_SIGNIN}?next=${encodeURIComponent(location.pathname)}`); return; }
+  if (!S.user && SITE_SIGNIN) { location.replace(`${SITE_SIGNIN}?next=${encodeURIComponent(location.pathname + location.hash)}`); return; }
   if (!S.user) { app.innerHTML = authView(); bindAuth(); return; }
   const views = { dashboard: dashView, sessions: listView, log: logView, settings: settingsView };
   app.innerHTML = `
@@ -466,10 +474,83 @@ function render() {
       <button class="log-btn" data-tab="log" ${S.tab === 'log' ? 'aria-current="page"' : ''}><span class="pill">${ICON.plus}</span>Log</button>
       ${tabBtn('settings', 'Account', ICON.gear)}
     </nav></div>
-    <div class="wrap"><main id="view">${views[S.tab]()}</main></div>`;
+    <div class="wrap">${installBanner()}<main id="view">${views[S.tab]()}</main></div>`;
   $$('.tabs [data-tab]').forEach(b => b.onclick = () => { S.tab = b.dataset.tab; if (S.tab === 'log') S.editing = null; render(); scrollTo(0, 0); });
   ({ dashboard: bindDash, sessions: bindList, log: bindLog, settings: bindSettings })[S.tab]();
+  showLink();
+  bindInstall();
 }
+
+/* ---------- install as a home-screen app ---------- */
+// Phones get a one-time card: Android and Chrome use the browser's own install prompt; iPhone and iPad,
+// which have none, get the Share → Add to Home Screen steps. "Not now" hides it for 30 days.
+const INSTALL_KEY = 'pokerIncome.installHidden';
+let installEvent = null;
+const standalone = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+const isIOS = () => /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+function installBanner() {
+  if (standalone() || !matchMedia('(pointer: coarse)').matches || Date.now() < +(ls.get(INSTALL_KEY) || 0)) return '';
+  if (installEvent) return `<div class="install" role="region" aria-label="Install the app"><p><b>Put Poker Income on your home screen</b> to open it like an app and log a session in one tap.</p>
+    <div class="acts"><button class="btn small" id="instNo">Not now</button><button class="btn small primary" id="instGo">Install</button></div></div>`;
+  if (isIOS()) return `<div class="install" role="region" aria-label="Install the app"><p><b>Put Poker Income on your home screen:</b> tap the Share button <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align:-2px"><path d="M12 3v12"/><path d="M8 7l4-4 4 4"/><path d="M5 11v9h14v-9"/></svg> in your browser, then <b>Add to Home Screen</b>.</p>
+    <div class="acts"><button class="btn small" id="instNo">Got it</button></div></div>`;
+  return '';
+}
+function bindInstall() {
+  const no = $('#instNo'), go = $('#instGo');
+  if (no) no.onclick = () => { ls.set(INSTALL_KEY, Date.now() + 30 * 864e5); render(); };
+  if (go) go.onclick = async () => {
+    const e = installEvent; installEvent = null;
+    e.prompt();
+    const { outcome } = await e.userChoice.catch(() => ({}));
+    if (outcome !== 'accepted') ls.set(INSTALL_KEY, Date.now() + 30 * 864e5);
+    render();
+  };
+}
+addEventListener('beforeinstallprompt', e => { e.preventDefault(); installEvent = e; if (S.user) render(); });
+addEventListener('appinstalled', () => { installEvent = null; if (S.user) render(); });
+
+/* ---------- deep links ---------- */
+// The address holds the tab and the Results filters (e.g. #results?year=2025&type=Cash&venue=Red+Rock), so a
+// bookmark or shared link opens that view, a refresh keeps it, and Back steps between tabs.
+const ROUTES = { dashboard: 'results', sessions: 'sessions', log: 'log', settings: 'account' };
+let shownLink = location.hash;
+function linkFor() {
+  const p = new URLSearchParams();
+  if (S.tab === 'dashboard') {
+    Object.entries(S.filters).forEach(([k, v]) => v !== 'all' && p.set(k, v));
+    if (S.chart !== 'line') p.set('chart', S.chart);
+    // Game and venue picks are named as shown; a year or month pick by its key ("2025", "03").
+    Object.entries(S.picks).forEach(([k, v]) => p.set(k, k === 'period' ? v.id : v.label));
+  }
+  const q = p.toString().replace(/%2F/g, '/');
+  return `#${ROUTES[S.tab]}${q ? '?' + q : ''}`;
+}
+function showLink() {
+  const link = linkFor();
+  if (link === shownLink) return;
+  // A new tab is a new step for Back; a filter change just updates the address.
+  const tabChanged = shownLink.split('?')[0] !== link.split('?')[0];
+  history[tabChanged && shownLink ? 'pushState' : 'replaceState'](null, '', link);
+  shownLink = link;
+}
+function applyLink() {
+  const [route, q = ''] = location.hash.slice(1).split('?');
+  const tab = Object.keys(ROUTES).find(k => ROUTES[k] === route);
+  if (!tab) return false;
+  const p = new URLSearchParams(q), type = p.get('type');
+  Object.assign(S, {
+    tab, editing: null, chart: p.get('chart') === 'month' ? 'month' : 'line', picks: {},
+    filters: { year: /^\d{4}$/.test(p.get('year')) ? p.get('year') : 'all', type: type === 'Cash' || type === 'Tournament' ? type : 'all', stakes: p.get('stakes') || 'all' },
+  });
+  Object.keys(PICKS).forEach(k => {
+    const v = p.get(k); if (!v) return;
+    S.picks[k] = k === 'period' ? { id: v.toLowerCase(), label: S.filters.year === 'all' ? v : MONTHS[+v - 1] || v } : { id: v.toLowerCase(), label: v };
+  });
+  shownLink = linkFor();
+  return true;
+}
+addEventListener('popstate', () => { if (S.user && applyLink()) { render(); scrollTo(0, 0); } });
 const tabBtn = (id, label, icon) => `<button data-tab="${id}" ${S.tab === id ? 'aria-current="page"' : ''}>${icon}${label}</button>`;
 
 /* --- sign in / create account --- */
@@ -922,8 +1003,9 @@ function uniq(list) {
 const stakesFor = (type, current) => uniq([...S.data.sessions.filter(x => x.type === type).map(x => x.stakes), current]);
 function pickOpts(list, value, noun) {
   const hit = list.find(x => x.toLowerCase() === String(value || '').toLowerCase());
-  return list.map(x => `<option value="${esc(x)}" ${x === hit ? 'selected' : ''}>${esc(x)}</option>`).join('') +
-    `<option value="" ${hit ? '' : 'selected'}>＋ New ${noun}…</option>`;
+  // "New" comes first, so a long list can't push it under the phone's toolbar.
+  return `<option value="" ${hit ? '' : 'selected'}>＋ New ${noun}…</option>` +
+    list.map(x => `<option value="${esc(x)}" ${x === hit ? 'selected' : ''}>${esc(x)}</option>`).join('');
 }
 // 1 to 12 hours; a saved session with other hours (say 4.5) keeps its own value in the list.
 function hourOpts(h) {
@@ -1190,7 +1272,7 @@ function bindSettings() {
 /* ---------- boot ---------- */
 let rz; addEventListener('resize', () => { clearTimeout(rz); rz = setTimeout(() => S.user && S.tab === 'dashboard' && drawCharts(), 150); });
 addEventListener('online', () => S.user && ls.get(PENDING_KEY) === S.user.toLowerCase() && pushServer());
-(async () => { await tryRemembered(); render(); loadServer(); })();
+(async () => { await tryRemembered(); applyLink(); render(); loadServer(); })();
 if ('serviceWorker' in navigator && location.protocol === 'https:' && document.querySelector('link[rel="manifest"]')) {
   navigator.serviceWorker.register('sw.js').catch(() => {});
 }
