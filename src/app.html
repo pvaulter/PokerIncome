@@ -393,6 +393,7 @@ async function signIn(name, pw, remember) {
 }
 async function enter(name, key, data, remember) {
   Object.assign(S, { user: name, key, data, tab: 'dashboard', editing: null });
+  applyLink();
   if (remember) { await idb.put(name.toLowerCase(), key); ls.set(REMEMBER_KEY, name.toLowerCase()); }
   render();
 }
@@ -436,7 +437,7 @@ const ICON = {
 
 function render() {
   const app = $('#app');
-  if (!S.user && SITE_SIGNIN) { location.replace(`${SITE_SIGNIN}?next=${encodeURIComponent(location.pathname)}`); return; }
+  if (!S.user && SITE_SIGNIN) { location.replace(`${SITE_SIGNIN}?next=${encodeURIComponent(location.pathname + location.hash)}`); return; }
   if (!S.user) { app.innerHTML = authView(); bindAuth(); return; }
   const views = { dashboard: dashView, sessions: listView, log: logView, settings: settingsView };
   app.innerHTML = `
@@ -456,7 +457,50 @@ function render() {
     <div class="wrap"><main id="view">${views[S.tab]()}</main></div>`;
   $$('.tabs [data-tab]').forEach(b => b.onclick = () => { S.tab = b.dataset.tab; if (S.tab === 'log') S.editing = null; render(); scrollTo(0, 0); });
   ({ dashboard: bindDash, sessions: bindList, log: bindLog, settings: bindSettings })[S.tab]();
+  showLink();
 }
+
+/* ---------- deep links ---------- */
+// The address holds the tab and the Results filters (e.g. #results?year=2025&type=Cash&venue=Red+Rock), so a
+// bookmark or shared link opens that view, a refresh keeps it, and Back steps between tabs.
+const ROUTES = { dashboard: 'results', sessions: 'sessions', log: 'log', settings: 'account' };
+let shownLink = location.hash;
+function linkFor() {
+  const p = new URLSearchParams();
+  if (S.tab === 'dashboard') {
+    Object.entries(S.filters).forEach(([k, v]) => v !== 'all' && p.set(k, v));
+    if (S.chart !== 'line') p.set('chart', S.chart);
+    // Game and venue picks are named as shown; a year or month pick by its key ("2025", "03").
+    Object.entries(S.picks).forEach(([k, v]) => p.set(k, k === 'period' ? v.id : v.label));
+  }
+  const q = p.toString().replace(/%2F/g, '/');
+  return `#${ROUTES[S.tab]}${q ? '?' + q : ''}`;
+}
+function showLink() {
+  const link = linkFor();
+  if (link === shownLink) return;
+  // A new tab is a new step for Back; a filter change just updates the address.
+  const tabChanged = shownLink.split('?')[0] !== link.split('?')[0];
+  history[tabChanged && shownLink ? 'pushState' : 'replaceState'](null, '', link);
+  shownLink = link;
+}
+function applyLink() {
+  const [route, q = ''] = location.hash.slice(1).split('?');
+  const tab = Object.keys(ROUTES).find(k => ROUTES[k] === route);
+  if (!tab) return false;
+  const p = new URLSearchParams(q), type = p.get('type');
+  Object.assign(S, {
+    tab, editing: null, chart: p.get('chart') === 'month' ? 'month' : 'line', picks: {},
+    filters: { year: /^\d{4}$/.test(p.get('year')) ? p.get('year') : 'all', type: type === 'Cash' || type === 'Tournament' ? type : 'all', stakes: p.get('stakes') || 'all' },
+  });
+  Object.keys(PICKS).forEach(k => {
+    const v = p.get(k); if (!v) return;
+    S.picks[k] = k === 'period' ? { id: v.toLowerCase(), label: S.filters.year === 'all' ? v : MONTHS[+v - 1] || v } : { id: v.toLowerCase(), label: v };
+  });
+  shownLink = linkFor();
+  return true;
+}
+addEventListener('popstate', () => { if (S.user && applyLink()) { render(); scrollTo(0, 0); } });
 const tabBtn = (id, label, icon) => `<button data-tab="${id}" ${S.tab === id ? 'aria-current="page"' : ''}>${icon}${label}</button>`;
 
 /* --- sign in / create account --- */
@@ -1177,7 +1221,7 @@ function bindSettings() {
 /* ---------- boot ---------- */
 let rz; addEventListener('resize', () => { clearTimeout(rz); rz = setTimeout(() => S.user && S.tab === 'dashboard' && drawCharts(), 150); });
 addEventListener('online', () => S.user && ls.get(PENDING_KEY) === S.user.toLowerCase() && pushServer());
-(async () => { await tryRemembered(); render(); loadServer(); })();
+(async () => { await tryRemembered(); applyLink(); render(); loadServer(); })();
 if ('serviceWorker' in navigator && location.protocol === 'https:' && document.querySelector('link[rel="manifest"]')) {
   navigator.serviceWorker.register('sw.js').catch(() => {});
 }
