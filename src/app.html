@@ -151,6 +151,9 @@ textarea.input { min-height: 70px; resize: vertical; }
 .preview .line { display: flex; justify-content: space-between; gap: 8px; font-size: .9rem; }
 .preview .line.total { border-top: 1px solid var(--line); padding-top: 8px; font-weight: 600; font-size: 1rem; }
 .actions { display: flex; gap: 10px; flex-wrap: wrap; }
+.log-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+/* The main Save button floats at the bottom left while the form scrolls, and settles at the end of the form. */
+.save-float { position: sticky; bottom: calc(16px + env(safe-area-inset-bottom, 0px)); justify-self: start; z-index: 5; box-shadow: 0 6px 18px rgba(0, 0, 0, .22); }
 .confirm { background: color-mix(in srgb, var(--loss) 10%, var(--surface)); border: 1px solid color-mix(in srgb, var(--loss) 40%, var(--line)); border-radius: var(--r); padding: 12px 14px; display: grid; gap: 10px; }
 
 /* Settings */
@@ -924,7 +927,7 @@ function logView() {
   const venues = uniq([...S.data.venues.map(v => v.name), ...S.data.sessions.map(x => x.venue), s.venue]);
   const v = x => (x === '' || x == null || (x === 0 && !ed) ? '' : x);
   return `<form class="form" id="logForm" novalidate>
-    <div style="display:grid;gap:4px"><h1>${ed ? 'Edit session' : 'Log a session'}</h1>
+    <div style="display:grid;gap:4px"><div class="log-head"><h1>${ed ? 'Edit session' : 'Log a session'}</h1><button class="btn primary small">Save</button></div>
       <span class="muted">${ed ? fmtDate(ed.date) + ' · ' + esc(ed.venue) : 'Fill in what you know. You can edit it later.'}</span></div>
     <fieldset>
       <div class="grid2">
@@ -960,10 +963,8 @@ function logView() {
     <label class="field"><span>Notes</span><textarea class="input" id="fNotes" placeholder="How did it go?">${esc(s.notes)}</textarea></label>
     <div class="preview" id="pv" aria-live="polite"></div>
     <div class="error" id="ferr" role="alert" hidden></div>
-    <div class="actions">
-      <button class="btn primary" id="fSave">${ed ? 'Save changes' : 'Save session'}</button>
-      ${ed ? `<button type="button" class="btn" id="fCancel">Cancel</button><button type="button" class="btn danger" id="fDel">Delete</button>` : ''}
-    </div>
+    <button class="btn primary save-float" id="fSave">${ed ? 'Save changes' : 'Save session'}</button>
+    ${ed ? `<div class="actions"><button type="button" class="btn" id="fCancel">Cancel</button><button type="button" class="btn danger" id="fDel">Delete</button></div>` : ''}
     <div id="delConfirm" class="confirm" hidden>
       <span>Delete this session? This can’t be undone.</span>
       <div class="actions"><button type="button" class="btn danger solid small" id="fDelYes">Delete session</button><button type="button" class="btn small" id="fDelNo">Keep it</button></div>
