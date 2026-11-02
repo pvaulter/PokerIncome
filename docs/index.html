@@ -1000,8 +1000,9 @@ function uniq(list) {
 const stakesFor = (type, current) => uniq([...S.data.sessions.filter(x => x.type === type).map(x => x.stakes), current]);
 function pickOpts(list, value, noun) {
   const hit = list.find(x => x.toLowerCase() === String(value || '').toLowerCase());
-  return list.map(x => `<option value="${esc(x)}" ${x === hit ? 'selected' : ''}>${esc(x)}</option>`).join('') +
-    `<option value="" ${hit ? '' : 'selected'}>＋ New ${noun}…</option>`;
+  // "New" comes first, so a long list can't push it under the phone's toolbar.
+  return `<option value="" ${hit ? '' : 'selected'}>＋ New ${noun}…</option>` +
+    list.map(x => `<option value="${esc(x)}" ${x === hit ? 'selected' : ''}>${esc(x)}</option>`).join('');
 }
 // 1 to 12 hours; a saved session with other hours (say 4.5) keeps its own value in the list.
 function hourOpts(h) {
