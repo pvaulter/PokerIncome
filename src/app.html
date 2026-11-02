@@ -56,6 +56,9 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .btn.danger.solid { background: var(--loss); border-color: var(--loss); color: #fff; }
 .btn.block { width: 100%; }
 .btn.small { padding: 6px 12px; font-size: .85rem; }
+.install { display: flex; align-items: center; gap: 12px; margin: 14px 0; padding: 12px 14px; border-radius: var(--r); background: color-mix(in srgb, var(--accent) 10%, var(--surface)); border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--line)); }
+.install p { margin: 0; flex: 1; font-size: .9rem; }
+.install .acts { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
 .field { display: grid; gap: 6px; min-width: 0; }
 .field > span, .field > label { font-size: .8rem; font-weight: 600; color: var(--muted); }
 .input[hidden] { display: none; }
@@ -454,11 +457,41 @@ function render() {
       <button class="log-btn" data-tab="log" ${S.tab === 'log' ? 'aria-current="page"' : ''}><span class="pill">${ICON.plus}</span>Log</button>
       ${tabBtn('settings', 'Account', ICON.gear)}
     </nav></div>
-    <div class="wrap"><main id="view">${views[S.tab]()}</main></div>`;
+    <div class="wrap">${installBanner()}<main id="view">${views[S.tab]()}</main></div>`;
   $$('.tabs [data-tab]').forEach(b => b.onclick = () => { S.tab = b.dataset.tab; if (S.tab === 'log') S.editing = null; render(); scrollTo(0, 0); });
   ({ dashboard: bindDash, sessions: bindList, log: bindLog, settings: bindSettings })[S.tab]();
   showLink();
+  bindInstall();
 }
+
+/* ---------- install as a home-screen app ---------- */
+// Phones get a one-time card: Android and Chrome use the browser's own install prompt; iPhone and iPad,
+// which have none, get the Share → Add to Home Screen steps. "Not now" hides it for 30 days.
+const INSTALL_KEY = 'pokerIncome.installHidden';
+let installEvent = null;
+const standalone = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+const isIOS = () => /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+function installBanner() {
+  if (standalone() || !matchMedia('(pointer: coarse)').matches || Date.now() < +(ls.get(INSTALL_KEY) || 0)) return '';
+  if (installEvent) return `<div class="install" role="region" aria-label="Install the app"><p><b>Put Poker Income on your home screen</b> to open it like an app and log a session in one tap.</p>
+    <div class="acts"><button class="btn small" id="instNo">Not now</button><button class="btn small primary" id="instGo">Install</button></div></div>`;
+  if (isIOS()) return `<div class="install" role="region" aria-label="Install the app"><p><b>Put Poker Income on your home screen:</b> tap the Share button <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align:-2px"><path d="M12 3v12"/><path d="M8 7l4-4 4 4"/><path d="M5 11v9h14v-9"/></svg> in your browser, then <b>Add to Home Screen</b>.</p>
+    <div class="acts"><button class="btn small" id="instNo">Got it</button></div></div>`;
+  return '';
+}
+function bindInstall() {
+  const no = $('#instNo'), go = $('#instGo');
+  if (no) no.onclick = () => { ls.set(INSTALL_KEY, Date.now() + 30 * 864e5); render(); };
+  if (go) go.onclick = async () => {
+    const e = installEvent; installEvent = null;
+    e.prompt();
+    const { outcome } = await e.userChoice.catch(() => ({}));
+    if (outcome !== 'accepted') ls.set(INSTALL_KEY, Date.now() + 30 * 864e5);
+    render();
+  };
+}
+addEventListener('beforeinstallprompt', e => { e.preventDefault(); installEvent = e; if (S.user) render(); });
+addEventListener('appinstalled', () => { installEvent = null; if (S.user) render(); });
 
 /* ---------- deep links ---------- */
 // The address holds the tab and the Results filters (e.g. #results?year=2025&type=Cash&venue=Red+Rock), so a
