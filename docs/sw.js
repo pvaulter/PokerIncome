@@ -1,5 +1,6 @@
 // Offline support: the page loads from the network when it can, everything else from cache, refreshed in the background.
-const CACHE = 'poker-income-v20';
+// Server answers (/api/...) are never cached: an old copy of the sessions would overwrite newer edits.
+const CACHE = 'poker-income-v21';
 const SHELL = ['./', 'index.html', 'manifest.webmanifest', 'icon.svg', 'icon-192.png'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL))); self.skipWaiting(); });
 self.addEventListener('activate', e => {
@@ -8,6 +9,7 @@ self.addEventListener('activate', e => {
 });
 self.addEventListener('fetch', e => {
   if (e.request.method !== 'GET') return;
+  if (new URL(e.request.url).pathname.startsWith('/api/')) return;
   // The page itself comes from the network when online, so an update shows up on the next open.
   if (e.request.mode === 'navigate') {
     e.respondWith(caches.open(CACHE).then(c => fetch(e.request)

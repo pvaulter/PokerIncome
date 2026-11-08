@@ -386,6 +386,9 @@ async function saveLocal() {
 // the device is back online. The newest save wins when two devices change things.
 const PENDING_KEY = 'pokerLedger.pending';
 const SYNCED_KEY = 'pokerLedger.synced.';
+// When this device last saved to the server (the server's own time). An answer older than that is a stale copy
+// and never replaces what's on the device.
+const SAVED_AT_KEY = 'pokerLedger.savedAt.';
 let pushing = null, pushAgain = false;
 function pushServer() {
   if (!SITE_SIGNIN || !S.user) return Promise.resolve();
@@ -400,6 +403,8 @@ function pushServer() {
         const res = await fetch('/api/income', { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ sessions, venues }) });
         if (res.status === 401) { await signOut(); return; }
         if (!res.ok) return;
+        const ok = await res.json().catch(() => ({}));
+        if (ok.updatedAt) ls.set(SAVED_AT_KEY + who, ok.updatedAt);
       } while (pushAgain && S.user);
       ls.del(PENDING_KEY); ls.set(SYNCED_KEY + who, '1');
     } catch {} finally { pushing = null; }
@@ -433,6 +438,8 @@ async function loadServer() {
     if (Array.isArray(body.rates) && body.rates.length) { S.data.rates = normalize({ rates: body.rates }).rates; await saveLocal(); }
     return pushServer();
   }
+  const savedAt = ls.get(SAVED_AT_KEY + who);
+  if (savedAt && body.updatedAt && body.updatedAt < savedAt) return;
   const server = normalize(body.data);
   const firstSync = !ls.get(SYNCED_KEY + who);
   const data = firstSync ? mergeData(server, S.data) : server;
@@ -1590,7 +1597,7 @@ function bindSettings() {
       ls.del(PENDING_KEY);
     }
     const all = accounts.all(); delete all[S.user.toLowerCase()]; accounts.save(all);
-    ls.del(SYNCED_KEY + S.user.toLowerCase());
+    ls.del(SYNCED_KEY + S.user.toLowerCase()); ls.del(SAVED_AT_KEY + S.user.toLowerCase());
     await signOut(); toast('Account deleted');
   };
 }
