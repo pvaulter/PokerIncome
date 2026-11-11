@@ -168,7 +168,17 @@ textarea.input { min-height: 70px; resize: vertical; }
 .row .d b { display: block; font-family: var(--font-display); font-size: 1.2rem; }
 .row .d small { font-size: .68rem; text-transform: uppercase; color: var(--muted); letter-spacing: .06em; }
 .row .mid { min-width: 0; }
-.row .rk { color: var(--muted); font-family: var(--font-num); font-weight: 600; }
+/* Results Last 10 / Top 10: one line per session in a short scrolling box. */
+.mini { max-height: 232px; overflow-y: auto; overscroll-behavior: contain; }
+.mrow { display: grid; grid-template-columns: 5.6em minmax(0, 1fr) auto; gap: 10px; align-items: baseline; padding: 8px 12px; border: 0; border-top: 1px solid var(--line); background: none; width: 100%; text-align: left; cursor: pointer; font-size: .88rem; white-space: nowrap; }
+.mini.ranked .mrow { grid-template-columns: 1.6em 5.6em minmax(0, 1fr) auto; }
+.mrow:first-child { border-top: 0; }
+.mrow:hover { background: var(--sunken); }
+.mrow .rk { color: var(--muted); font-family: var(--font-num); font-size: .78rem; min-width: 1.6em; }
+.mrow .dt { color: var(--muted); font-size: .8rem; }
+.mrow .vn { overflow: hidden; text-overflow: ellipsis; }
+.mrow .vn small { color: var(--muted); font-size: .8rem; }
+.mrow .amt { font-family: var(--font-num); font-weight: 600; }
 .row .mid div:first-child { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .row .mid div:last-child { font-size: .82rem; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .row .amt { text-align: right; }
@@ -835,7 +845,7 @@ function topView(rows) {
   return `<section class="panel wide topten"><header><div class="seg" role="group" aria-label="Session list">
       ${[['last', 'Last 10 sessions'], ['top', 'Top 10 sessions']].map(([v, l]) => `<button data-list="${v}" aria-pressed="${(S.list || 'last') === v}">${l}</button>`).join('')}
     </div><span class="hint">${best ? 'Biggest wins' : 'Most recent first'} · tap one to edit it</span></header>
-    ${list.length ? `<div class="rows">${list.map((s, i) => rowHTML(s, best ? i + 1 : 0)).join('')}</div>` : `<p class="muted" style="margin:0">No winning sessions in these filters.</p>`}</section>`;
+    ${list.length ? `<div class="rows mini${best ? " ranked" : ""}">${list.map((s, i) => miniRowHTML(s, best && i + 1)).join('')}</div>` : `<p class="muted" style="margin:0">No winning sessions in these filters.</p>`}</section>`;
 }
 function bindDash() {
   const g = $('#goLog'); if (g) { g.onclick = () => { S.tab = 'log'; render(); }; return; }
@@ -845,7 +855,7 @@ function bindDash() {
   $$('[data-unpick]').forEach(b => b.onclick = () => { delete S.picks[b.dataset.unpick]; render(); });
   $$('[data-chart]').forEach(b => b.onclick = () => { S.chart = b.dataset.chart; render(); });
   $$('[data-list]').forEach(b => b.onclick = () => { S.list = b.dataset.list; render(); });
-  $$('.topten .row').forEach(r => r.onclick = () => { S.editing = r.dataset.id; S.tab = 'log'; render(); scrollTo(0, 0); });
+  $$('.topten .mrow').forEach(r => r.onclick = () => { S.editing = r.dataset.id; S.tab = 'log'; render(); scrollTo(0, 0); });
   const fs = $('#fs'); if (fs) fs.onchange = e => { S.filters.stakes = e.target.value; render(); };
   drawCharts();
 }
@@ -1313,12 +1323,20 @@ function listView() {
           <div class="rows">${list.map(s => rowHTML(s)).join('')}</div></div>`;
       }).join('')}</div>`;
 }
-// rank: given on the Results lists, which span years so they show the year too; above 0 it's a place in the top 10.
-function rowHTML(s, rank) {
+// One line per session for the Results lists: rank (top 10 only), date, venue, stakes and hours, net. No notes.
+function miniRowHTML(s, rank) {
   const c = calc(s), [y, m, d] = s.date.split('-');
+  const sub = [s.type === 'Tournament' ? 'MTT' : s.stakes, s.hours ? hrs(s.hours) + 'h' : ''].filter(Boolean).join(' · ');
+  return `<button class="mrow" data-id="${s.id}">${rank ? `<span class="rk">${rank}.</span>` : ''}
+    <span class="dt">${MONTHS[+m - 1]} ${+d} ’${y.slice(2)}</span>
+    <span class="vn">${esc(s.venue || 'Unknown venue')}${sub ? ` <small>${esc(sub)}</small>` : ''}</span>
+    <span class="amt ${cls(c.net)}">${money(c.net, true)}</span></button>`;
+}
+function rowHTML(s) {
+  const c = calc(s), [, m, d] = s.date.split('-');
   return `<button class="row" data-id="${s.id}">
-    <span class="d"><b>${+d}</b><small>${MONTHS[+m - 1]}${rank != null ? `<br>’${y.slice(2)}` : ''}</small></span>
-    <span class="mid"><div>${rank ? `<span class="rk">${rank}.</span> ` : ''}${esc(s.venue || 'Unknown venue')}${s.type === 'Tournament' ? '<span class="chip">MTT</span>' : ''}</div>
+    <span class="d"><b>${+d}</b><small>${MONTHS[+m - 1]}</small></span>
+    <span class="mid"><div>${esc(s.venue || 'Unknown venue')}${s.type === 'Tournament' ? '<span class="chip">MTT</span>' : ''}</div>
       <div>${esc([s.stakes && s.type === 'Cash' ? s.stakes : '', s.hours ? hrs(s.hours) + 'h' : '', s.notes].filter(Boolean).join(' · ') || ' ')}</div></span>
     <span class="amt"><b class="${cls(c.net)}">${money(c.net, true)}</b><small>${c.hourly != null ? money(c.hourly, true) + '/h' : ''}</small></span>
   </button>`;
