@@ -396,7 +396,7 @@ async function saveLocal() {
 // the device is back online. The newest save wins when two devices change things.
 const PENDING_KEY = 'pokerLedger.pending';
 const SYNCED_KEY = 'pokerLedger.synced.';
-// When this device last saved to the server (the server's own time). An answer older than that is a stale copy
+// The server copy this device last saved or loaded (the server's own time). An answer older than that is a stale copy
 // and never replaces what's on the device.
 const SAVED_AT_KEY = 'pokerLedger.savedAt.';
 let pushing = null, pushAgain = false;
@@ -410,8 +410,23 @@ function pushServer() {
       do {
         pushAgain = false;
         const { sessions, venues } = S.data;
-        const res = await fetch('/api/income', { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ sessions, venues }) });
+        // base: the server copy this device last had. The server refuses the save if another device saved since.
+        const base = ls.get(SAVED_AT_KEY + who) || null;
+        const res = await fetch('/api/income', { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ sessions, venues, base }) });
         if (res.status === 401) { await signOut(); return; }
+        if (res.status === 409) {
+          // This device's copy is out of date: take the latest one and add only the sessions it doesn't have yet,
+          // so nothing saved on another device is lost. Then save again if anything was added.
+          const latest = await res.json().catch(() => null);
+          if (!latest || !latest.saved || !S.user || S.user.toLowerCase() !== who) return;
+          const server = normalize(latest.data), merged = mergeData(server, S.data);
+          ls.set(SAVED_AT_KEY + who, latest.updatedAt);
+          S.data = merged; await saveLocal();
+          if (!formInUse()) render();
+          toast('Updated with sessions saved on another device');
+          pushAgain = merged.sessions.length > server.sessions.length || merged.venues.length > server.venues.length;
+          continue;
+        }
         if (!res.ok) return;
         const ok = await res.json().catch(() => ({}));
         if (ok.updatedAt) ls.set(SAVED_AT_KEY + who, ok.updatedAt);
@@ -453,6 +468,7 @@ async function loadServer() {
   const server = normalize(body.data);
   const firstSync = !ls.get(SYNCED_KEY + who);
   const data = firstSync ? mergeData(server, S.data) : server;
+  if (body.updatedAt) ls.set(SAVED_AT_KEY + who, body.updatedAt);
   if (JSON.stringify(data) !== JSON.stringify(S.data)) {
     S.data = data; await saveLocal();
     if (!formInUse()) render();
