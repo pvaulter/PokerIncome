@@ -812,12 +812,16 @@ function dashView() {
       <section class="panel wide"><header><h2>By day of week</h2><span class="hint">Net and per hour, by the day you played</span></header><div class="chart" id="cDay"></div></section>
     </div>` : `<div class="empty"><p class="muted" style="margin:0">No sessions match these filters.</p></div>`}`;
 }
-// The 10 biggest winning sessions within the page's filters, best first; tap one to edit it.
+// The last 10 sessions, or the 10 biggest wins, within the page's filters; tap one to edit it.
 function topView(rows) {
-  const top = rows.map(s => ({ s, net: calc(s).net })).filter(x => x.net > 0).sort((a, b) => b.net - a.net || b.s.date.localeCompare(a.s.date)).slice(0, 10);
-  if (!top.length) return '';
-  return `<section class="panel wide topten"><header><h2>Top ${top.length} session${top.length === 1 ? '' : 's'}</h2><span class="hint">Biggest wins · tap one to edit it</span></header>
-    <div class="rows">${top.map((x, i) => rowHTML(x.s, i + 1)).join('')}</div></section>`;
+  const best = S.list === 'top';
+  const list = best
+    ? rows.map(s => ({ s, net: calc(s).net })).filter(x => x.net > 0).sort((a, b) => b.net - a.net || b.s.date.localeCompare(a.s.date)).slice(0, 10).map(x => x.s)
+    : rows.slice(-10).reverse();
+  return `<section class="panel wide topten"><header><div class="seg" role="group" aria-label="Session list">
+      ${[['last', 'Last 10 sessions'], ['top', 'Top 10 sessions']].map(([v, l]) => `<button data-list="${v}" aria-pressed="${(S.list || 'last') === v}">${l}</button>`).join('')}
+    </div><span class="hint">${best ? 'Biggest wins' : 'Most recent first'} · tap one to edit it</span></header>
+    ${list.length ? `<div class="rows">${list.map((s, i) => rowHTML(s, best ? i + 1 : 0)).join('')}</div>` : `<p class="muted" style="margin:0">No winning sessions in these filters.</p>`}</section>`;
 }
 function bindDash() {
   const g = $('#goLog'); if (g) { g.onclick = () => { S.tab = 'log'; render(); }; return; }
@@ -826,6 +830,7 @@ function bindDash() {
   $$('[data-type]').forEach(b => b.onclick = () => { S.filters.type = b.dataset.type; delete S.picks.game; render(); });
   $$('[data-unpick]').forEach(b => b.onclick = () => { delete S.picks[b.dataset.unpick]; render(); });
   $$('[data-chart]').forEach(b => b.onclick = () => { S.chart = b.dataset.chart; render(); });
+  $$('[data-list]').forEach(b => b.onclick = () => { S.list = b.dataset.list; render(); });
   $$('.topten .row').forEach(r => r.onclick = () => { S.editing = r.dataset.id; S.tab = 'log'; render(); scrollTo(0, 0); });
   const fs = $('#fs'); if (fs) fs.onchange = e => { S.filters.stakes = e.target.value; render(); };
   drawCharts();
@@ -1294,11 +1299,11 @@ function listView() {
           <div class="rows">${list.map(s => rowHTML(s)).join('')}</div></div>`;
       }).join('')}</div>`;
 }
-// rank: a place in the Results top 10, which also shows the year since that list spans years.
+// rank: given on the Results lists, which span years so they show the year too; above 0 it's a place in the top 10.
 function rowHTML(s, rank) {
   const c = calc(s), [y, m, d] = s.date.split('-');
   return `<button class="row" data-id="${s.id}">
-    <span class="d"><b>${+d}</b><small>${MONTHS[+m - 1]}${rank ? `<br>’${y.slice(2)}` : ''}</small></span>
+    <span class="d"><b>${+d}</b><small>${MONTHS[+m - 1]}${rank != null ? `<br>’${y.slice(2)}` : ''}</small></span>
     <span class="mid"><div>${rank ? `<span class="rk">${rank}.</span> ` : ''}${esc(s.venue || 'Unknown venue')}${s.type === 'Tournament' ? '<span class="chip">MTT</span>' : ''}</div>
       <div>${esc([s.stakes && s.type === 'Cash' ? s.stakes : '', s.hours ? hrs(s.hours) + 'h' : '', s.notes].filter(Boolean).join(' · ') || ' ')}</div></span>
     <span class="amt"><b class="${cls(c.net)}">${money(c.net, true)}</b><small>${c.hourly != null ? money(c.hourly, true) + '/h' : ''}</small></span>
