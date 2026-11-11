@@ -168,6 +168,7 @@ textarea.input { min-height: 70px; resize: vertical; }
 .row .d b { display: block; font-family: var(--font-display); font-size: 1.2rem; }
 .row .d small { font-size: .68rem; text-transform: uppercase; color: var(--muted); letter-spacing: .06em; }
 .row .mid { min-width: 0; }
+.row .rk { color: var(--muted); font-family: var(--font-num); font-weight: 600; }
 .row .mid div:first-child { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .row .mid div:last-child { font-size: .82rem; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .row .amt { text-align: right; }
@@ -817,12 +818,24 @@ function dashView() {
     </div>
     ${rows.length ? `<div class="charts">
       <section class="panel wide"><header><h2>${S.chart === 'month' ? 'Monthly Buckets' : 'Running total'}</h2><span class="hint">${S.chart === 'month' ? 'Net profit each month' : 'Net profit after each session'}</span></header><div class="chart" id="cRun"></div></section>
+      ${topView(rows)}
       <section class="panel wide"><header><h2>By game type</h2><span class="hint">${S.filters.type === 'Tournament' ? 'Net and per hour, by event' : 'Net and per hour, by stakes'} · tap a bar to filter</span></header><div class="chart" id="cGame"></div></section>
       <section class="panel"><header><h2>By venue</h2><span class="hint">Net and per hour · tap to filter</span></header><div class="chart" id="cVenue"></div></section>
       <section class="panel"><header><h2>${S.filters.year === 'all' ? 'By year' : 'By month'}</h2><span class="hint">Net profit · tap to filter</span></header><div class="chart" id="cYear"></div></section>
       <section class="panel wide"><header><h2>By session length</h2><span class="hint">Average net per session</span></header><div class="chart" id="cHours"></div></section>
       <section class="panel wide"><header><h2>By day of week</h2><span class="hint">Net and per hour, by the day you played</span></header><div class="chart" id="cDay"></div></section>
     </div>` : `<div class="empty"><p class="muted" style="margin:0">No sessions match these filters.</p></div>`}`;
+}
+// The last 10 sessions, or the 10 biggest wins, within the page's filters; tap one to edit it.
+function topView(rows) {
+  const best = S.list === 'top';
+  const list = best
+    ? rows.map(s => ({ s, net: calc(s).net })).filter(x => x.net > 0).sort((a, b) => b.net - a.net || b.s.date.localeCompare(a.s.date)).slice(0, 10).map(x => x.s)
+    : rows.slice(-10).reverse();
+  return `<section class="panel wide topten"><header><div class="seg" role="group" aria-label="Session list">
+      ${[['last', 'Last 10 sessions'], ['top', 'Top 10 sessions']].map(([v, l]) => `<button data-list="${v}" aria-pressed="${(S.list || 'last') === v}">${l}</button>`).join('')}
+    </div><span class="hint">${best ? 'Biggest wins' : 'Most recent first'} · tap one to edit it</span></header>
+    ${list.length ? `<div class="rows">${list.map((s, i) => rowHTML(s, best ? i + 1 : 0)).join('')}</div>` : `<p class="muted" style="margin:0">No winning sessions in these filters.</p>`}</section>`;
 }
 function bindDash() {
   const g = $('#goLog'); if (g) { g.onclick = () => { S.tab = 'log'; render(); }; return; }
@@ -831,6 +844,8 @@ function bindDash() {
   $$('[data-type]').forEach(b => b.onclick = () => { S.filters.type = b.dataset.type; delete S.picks.game; render(); });
   $$('[data-unpick]').forEach(b => b.onclick = () => { delete S.picks[b.dataset.unpick]; render(); });
   $$('[data-chart]').forEach(b => b.onclick = () => { S.chart = b.dataset.chart; render(); });
+  $$('[data-list]').forEach(b => b.onclick = () => { S.list = b.dataset.list; render(); });
+  $$('.topten .row').forEach(r => r.onclick = () => { S.editing = r.dataset.id; S.tab = 'log'; render(); scrollTo(0, 0); });
   const fs = $('#fs'); if (fs) fs.onchange = e => { S.filters.stakes = e.target.value; render(); };
   drawCharts();
 }
@@ -1295,14 +1310,15 @@ function listView() {
       : [...months].map(([k, list]) => {
         const net = list.reduce((a, s) => a + calc(s).net, 0); const [y, m] = k.split('-');
         return `<div class="month"><div class="month-h"><span class="label">${MONTHS[+m - 1]} ${y}</span><span class="num ${cls(net)}" style="font-size:.85rem">${money(net, true)}</span></div>
-          <div class="rows">${list.map(rowHTML).join('')}</div></div>`;
+          <div class="rows">${list.map(s => rowHTML(s)).join('')}</div></div>`;
       }).join('')}</div>`;
 }
-function rowHTML(s) {
-  const c = calc(s), [, m, d] = s.date.split('-');
+// rank: given on the Results lists, which span years so they show the year too; above 0 it's a place in the top 10.
+function rowHTML(s, rank) {
+  const c = calc(s), [y, m, d] = s.date.split('-');
   return `<button class="row" data-id="${s.id}">
-    <span class="d"><b>${+d}</b><small>${MONTHS[+m - 1]}</small></span>
-    <span class="mid"><div>${esc(s.venue || 'Unknown venue')}${s.type === 'Tournament' ? '<span class="chip">MTT</span>' : ''}</div>
+    <span class="d"><b>${+d}</b><small>${MONTHS[+m - 1]}${rank != null ? `<br>’${y.slice(2)}` : ''}</small></span>
+    <span class="mid"><div>${rank ? `<span class="rk">${rank}.</span> ` : ''}${esc(s.venue || 'Unknown venue')}${s.type === 'Tournament' ? '<span class="chip">MTT</span>' : ''}</div>
       <div>${esc([s.stakes && s.type === 'Cash' ? s.stakes : '', s.hours ? hrs(s.hours) + 'h' : '', s.notes].filter(Boolean).join(' · ') || ' ')}</div></span>
     <span class="amt"><b class="${cls(c.net)}">${money(c.net, true)}</b><small>${c.hourly != null ? money(c.hourly, true) + '/h' : ''}</small></span>
   </button>`;
