@@ -413,6 +413,7 @@ const SYNCED_KEY = 'pokerLedger.synced.';
 // The server copy this device last saved or loaded (the server's own time). An answer older than that is a stale copy
 // and never replaces what's on the device.
 const SAVED_AT_KEY = 'pokerLedger.savedAt.';
+const FORCE_KEY = 'pokerLedger.force.';
 let pushing = null, pushAgain = false;
 function pushServer() {
   if (!SITE_SIGNIN || !S.user) return Promise.resolve();
@@ -426,7 +427,9 @@ function pushServer() {
         const { sessions, venues } = S.data;
         // base: the server copy this device last had. The server refuses the save if another device saved since.
         const base = ls.get(SAVED_AT_KEY + who) || null;
-        const res = await fetch('/api/income', { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ sessions, venues, base }) });
+        // After Account > Replace everything, this device's copy is the one to keep, whatever the server has.
+        const force = ls.get(FORCE_KEY + who) === '1';
+        const res = await fetch('/api/income', { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ sessions, venues, base, force }) });
         if (res.status === 401) { await signOut(); return; }
         if (res.status === 409) {
           // This device's copy is out of date: take the latest one and add only the sessions it doesn't have yet,
@@ -444,6 +447,7 @@ function pushServer() {
         if (!res.ok) return;
         const ok = await res.json().catch(() => ({}));
         if (ok.updatedAt) ls.set(SAVED_AT_KEY + who, ok.updatedAt);
+        if (force) ls.del(FORCE_KEY + who);
       } while (pushAgain && S.user);
       ls.del(PENDING_KEY); ls.set(SYNCED_KEY + who, '1');
     } catch {} finally { pushing = null; }
@@ -1658,7 +1662,7 @@ function bindSettings() {
       incoming.venues.forEach(v => { if (!S.data.venues.some(x => x.name.toLowerCase() === v.name.toLowerCase())) S.data.venues.push(v); });
       await done(`Added ${fresh.length} sessions`);
     };
-    $('#impReplace').onclick = async () => { S.data = { ...incoming, rates: S.data.rates }; await done(`Restored ${incoming.sessions.length} sessions`); };
+    $('#impReplace').onclick = async () => { S.data = { ...incoming, rates: S.data.rates }; ls.set(FORCE_KEY + S.user.toLowerCase(), '1'); await done(`Restored ${incoming.sessions.length} sessions`); };
   };
   const venueTaken = (name, except) => S.data.venues.some(x => x !== except && x.name.toLowerCase() === name.toLowerCase());
   $$('tr[data-venue]').forEach(tr => {
