@@ -240,6 +240,8 @@ textarea.backup { font-family: var(--font-num); font-size: .75rem; min-height: 1
 .past { display: grid; grid-template-columns: 1fr auto; gap: 4px 10px; font-size: .9rem; padding: 10px 0; border-top: 1px solid var(--line); }
 .past > span:last-child { text-align: right; }
 .legend { display: flex; gap: 14px; font-size: .8rem; color: var(--muted); }
+.legend.split { gap: 18px; font-size: .9rem; color: var(--ink); }
+.panel header .hint .legend { display: inline-flex; }
 .legend i { display: inline-block; width: 10px; height: 3px; border-radius: 2px; margin-right: 6px; vertical-align: 3px; }
 .invite { text-align: center; display: grid; gap: 12px; justify-items: center; max-width: 460px; margin: 8px auto; }
 .trophy { font-size: 2.4rem; }
@@ -712,7 +714,7 @@ function applyLink() {
   const p = new URLSearchParams(q), type = p.get('type');
   Object.assign(S, {
     tab, editing: null, chart: p.get('chart') === 'month' ? 'month' : 'line', picks: {},
-    filters: { year: /^(\d{4}|all)$/.test(p.get('year')) ? p.get('year') : THIS_YEAR, type: type === 'Cash' || type === 'Tournament' ? type : 'all', stakes: p.get('stakes') || 'all' },
+    filters: { year: /^(\d{4}|all)$/.test(p.get('year')) ? p.get('year') : THIS_YEAR, type: ['Cash', 'Tournament', 'excl'].includes(type) ? type : 'all', stakes: p.get('stakes') || 'all' },
   });
   Object.keys(PICKS).forEach(k => {
     const v = p.get(k); if (!v) return;
@@ -777,6 +779,8 @@ function bindAuth() {
 /* --- dashboard --- */
 const stakesKey = s => s.stakes.trim().toLowerCase();
 // Stakes are a cash game's; under Tournaments the same field holds the event name.
+// Excl (mutually exclusive): cash games and tournaments drawn as their own line or bar in the top chart.
+const SPLIT = [{ type: 'Cash', label: 'Cash', color: 'var(--accent)' }, { type: 'Tournament', label: 'Tourney', color: 'var(--rival)' }];
 const stakesType = () => (S.filters.type === 'Tournament' ? 'Tournament' : 'Cash');
 // Bars in the By game type, By venue and By year (or month) charts work as filters for the rest of the page;
 // clicking the picked bar again drops it. Each chart leaves out its own pick so its other bars stay visible.
@@ -790,7 +794,7 @@ const PICKS = {
 const picked = (s, except) => except === 'all' || Object.entries(S.picks).every(([n, p]) => n === except || PICKS[n].key(s).toLowerCase() === p.id);
 function filtered(withStakes = true, except = null) {
   const { year, type, stakes } = S.filters;
-  return S.data.sessions.filter(s => (year === 'all' || s.date.startsWith(year)) && (type === 'all' || s.type === type)
+  return S.data.sessions.filter(s => (year === 'all' || s.date.startsWith(year)) && (type === 'all' || type === 'excl' || s.type === type)
     && (!withStakes || stakes === 'all' || (s.type === stakesType() && stakesKey(s) === stakes)) && picked(s, except))
     .sort((a, b) => a.date.localeCompare(b.date));
 }
@@ -817,14 +821,14 @@ function dashView() {
   const rows = filtered();
   const t = rows.reduce((a, s) => { const c = calc(s); a.net += c.net; a.hours += s.hours; a.win += c.net > 0 ? 1 : 0; a.mil += c.mileage; a.exp += s.expenses; a.tips += s.tips; return a; }, { net: 0, hours: 0, win: 0, mil: 0, exp: 0, tips: 0 });
   const chosen = stakes.find(([k]) => k === S.filters.stakes);
-  const scope = (S.filters.year === 'all' ? 'All time' : S.filters.year) + (S.filters.type === 'all' ? '' : ` · ${S.filters.type === 'Cash' ? 'Cash games' : 'Tournaments'}`) + (chosen ? ` · ${chosen[1]}` : '')
+  const scope = (S.filters.year === 'all' ? 'All time' : S.filters.year) + (S.filters.type === 'all' || S.filters.type === 'excl' ? '' : ` · ${S.filters.type === 'Cash' ? 'Cash games' : 'Tournaments'}`) + (chosen ? ` · ${chosen[1]}` : '')
     + Object.values(S.picks).map(p => ` · ${p.label}`).join('');
   return `
     <div class="filters">
       <div class="frow">
       <select class="input" id="fy" aria-label="Year"><option value="all">All years</option>${years.map(y => `<option ${S.filters.year === y ? 'selected' : ''}>${y}</option>`).join('')}</select>
       <div class="seg" role="group" aria-label="Game type">
-        ${[['all', 'All games'], ['Cash', 'Cash'], ['Tournament', 'Tourney']].map(([v, l]) => `<button data-type="${v}" aria-pressed="${S.filters.type === v}">${l}</button>`).join('')}
+        ${[['all', 'All games'], ['Cash', 'Cash'], ['Tournament', 'Tourney'], ['excl', 'Excl']].map(([v, l]) => `<button data-type="${v}" aria-pressed="${S.filters.type === v}">${l}</button>`).join('')}
       </div>
       </div>
       <div class="frow">
@@ -838,6 +842,7 @@ function dashView() {
     <div class="hero">
       <span class="label">Net profit · ${esc(scope)}</span>
       <span class="big ${cls(t.net)}">${money(t.net, true)}</span>
+      ${S.filters.type === 'excl' ? `<span class="legend split">${SPLIT.map(g => { const net = rows.filter(s => s.type === g.type).reduce((a, s) => a + calc(s).net, 0); return `<span><i style="background:${g.color}"></i>${g.label} <b class="num ${cls(net)}">${money(net, true)}</b></span>`; }).join('')}</span>` : ''}
       <span class="muted" style="font-size:.85rem">After ${money(t.mil)} mileage, ${money(t.tips)} food &amp; drinks and ${money(t.exp)} other expenses</span>
     </div>
     <div class="stats">
@@ -847,7 +852,7 @@ function dashView() {
       <div class="stat"><span class="label">Hours</span><span class="v">${hrs(t.hours)}</span></div>
     </div>
     ${rows.length ? `<div class="charts">
-      <section class="panel wide"><header><h2>${S.chart === 'month' ? 'Monthly Buckets' : 'Running total'}</h2><span class="hint">${S.chart === 'month' ? 'Net profit each month' : 'Net profit after each session'}</span></header><div class="chart" id="cRun"></div></section>
+      <section class="panel wide"><header><h2>${S.chart === 'month' ? 'Monthly Buckets' : 'Running total'}</h2><span class="hint">${S.filters.type === 'excl' ? `<span class="legend">${SPLIT.map(g => `<span><i style="background:${g.color}"></i>${g.label}</span>`).join('')}</span>` : S.chart === 'month' ? 'Net profit each month' : 'Net profit after each session'}</span></header><div class="chart" id="cRun"></div></section>
       ${topView(rows)}
       <section class="panel wide"><header><h2>By game type</h2><span class="hint">${S.filters.type === 'Tournament' ? 'Net and per hour, by event' : 'Net and per hour, by stakes'} · tap a bar to filter</span></header><div class="chart" id="cGame"></div></section>
       <section class="panel"><header><h2>By venue</h2><span class="hint">Net and per hour · tap to filter</span></header><div class="chart" id="cVenue"></div></section>
@@ -890,7 +895,18 @@ function drawCharts() {
       months.push({ ...g, key, label: `${MONTHS[m - 1]} ${y}`, axis: S.filters.year === 'all' ? `${MONTHS[m - 1]} ’${String(y).slice(2)}` : MONTHS[m - 1] });
       if (key >= end) break;
     }
+    if (S.filters.type === 'excl') {
+      // Excl: a cash bar and a tournament bar side by side each month.
+      const parts = new Map(SPLIT.map(g => [g.type, new Map(group(rows.filter(s => s.type === g.type), s => s.date.slice(0, 7)).map(x => [x.key, x]))]));
+      months.forEach(m => { m.parts = SPLIT.map(g => ({ ...g, ...(parts.get(g.type).get(m.key) || { net: 0, n: 0, hours: 0 }) })); });
+      barsV($('#cRun'), months, it => `${it.label}<br>${it.parts.map(x => `${x.label} <b>${money(x.net, true)}</b> · ${x.n} session${x.n === 1 ? '' : 's'}`).join('<br>')}`);
+    } else
     barsV($('#cRun'), months, it => `${it.label}<br><b>${money(it.net, true)}</b> · ${it.n} session${it.n === 1 ? '' : 's'}${it.hours ? ` · ${money(it.net / it.hours, true)}/h` : ''}`);
+  } else if (S.filters.type === 'excl') {
+    // Excl: cash and tournaments each keep their own running total, on one shared timeline.
+    const run = { Cash: 0, Tournament: 0 };
+    const pts = rows.map(s => { const c = calc(s); run[s.type === 'Tournament' ? 'Tournament' : 'Cash'] += c.net; return { s, net: c.net, run: 0, runs: { ...run } }; });
+    lineChart($('#cRun'), pts, SPLIT);
   } else {
     // running total
     let run = 0;
@@ -962,9 +978,10 @@ function tipAt(el, x, y, html) {
 }
 const hideTip = el => { const t = $('.tip', el); if (t) t.hidden = true; };
 
-function lineChart(el, pts) {
+// series: with Excl, one line per game type, read from each point's runs[type].
+function lineChart(el, pts, series) {
   const W = Math.max(el.clientWidth, 280), H = W < 500 ? 200 : 240, L = 52, R = 12, T = 12, B = 26;
-  const ys = pts.map(p => p.run).concat(0);
+  const ys = series ? pts.flatMap(p => series.map(g => p.runs[g.type])).concat(0) : pts.map(p => p.run).concat(0);
   const ticks = niceTicks(Math.min(...ys), Math.max(...ys));
   const y0 = ticks[0], y1 = ticks[ticks.length - 1];
   // The line starts at $0 before the first session, so session i sits at slot i + 1.
@@ -979,12 +996,17 @@ function lineChart(el, pts) {
   const spaced = yearMarks.filter((m, k) => k === 0 || X(m[0]) - X(yearMarks[k - 1][0]) >= 36);
   const showYears = yearMarks.length > 1 ? spaced.filter((m, k) => k === 0 || X(m[0]) - X(spaced[k - 1][0]) >= 36) : n === 1 ? [[0, fmtDate(pts[0].s.date)]] : [[0, fmtDate(pts[0].s.date)], [pts.length - 1, fmtDate(pts[pts.length - 1].s.date)]];
   const end = pts[pts.length - 1];
-  el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Running total of net profit, ending at ${money(end.run)}">
+  const lines = series ? series.map(g => {
+    const d = `M${X(-1).toFixed(1)},${Y(0).toFixed(1)}` + pts.map((p, i) => `L${X(i).toFixed(1)},${Y(p.runs[g.type]).toFixed(1)}`).join('');
+    return `<path d="${d}" fill="none" stroke="${g.color}" stroke-width="2.25" stroke-linejoin="round" stroke-linecap="round"/>
+      <circle cx="${X(n - 1)}" cy="${Y(end.runs[g.type])}" r="4" fill="${g.color}" stroke="var(--surface)" stroke-width="2"/>`;
+  }).join('') : '';
+  el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Running total of net profit, ending at ${series ? series.map(g => `${g.label} ${money(end.runs[g.type])}`).join(', ') : money(end.run)}">
     ${ticks.map(v => `<line class="${v === 0 ? 'zero' : 'gridline'}" x1="${L}" x2="${W - R}" y1="${Y(v)}" y2="${Y(v)}"/><text x="${L - 8}" y="${Y(v) + 4}" text-anchor="end">${short(v)}</text>`).join('')}
     ${showYears.map(([i, y], k) => `<text x="${k === 0 ? L : X(i)}" y="${H - 6}" text-anchor="${k === 0 ? 'start' : k === showYears.length - 1 && yearMarks.length <= 1 ? 'end' : 'middle'}">${y}</text>`).join('')}
-    <path d="${line}" fill="none" stroke="var(--accent)" stroke-width="2.25" stroke-linejoin="round" stroke-linecap="round"/>
+    ${series ? lines : `<path d="${line}" fill="none" stroke="var(--accent)" stroke-width="2.25" stroke-linejoin="round" stroke-linecap="round"/>
     ${dots}
-    <circle cx="${X(pts.length - 1)}" cy="${Y(end.run)}" r="4" fill="var(--accent)" stroke="var(--surface)" stroke-width="2"/>
+    <circle cx="${X(pts.length - 1)}" cy="${Y(end.run)}" r="4" fill="var(--accent)" stroke="var(--surface)" stroke-width="2"/>`}
     <line id="xh" y1="${T}" y2="${H - B}" stroke="var(--muted)" stroke-dasharray="3 3" visibility="hidden"/>
     <circle id="xd" r="4.5" fill="var(--accent)" stroke="var(--surface)" stroke-width="2" visibility="hidden"/>
     <rect x="${L}" y="0" width="${W - L - R}" height="${H}" fill="transparent" id="hit"/>
@@ -993,10 +1015,12 @@ function lineChart(el, pts) {
   const move = ev => {
     const r = svg.getBoundingClientRect(), sx = (ev.clientX - r.left) * W / r.width;
     const i = Math.max(0, Math.min(n - 1, Math.round((sx - L) / ((W - L - R) / n)) - 1));
-    const p = pts[i], px = X(i), py = Y(p.run);
+    const p = pts[i], px = X(i), own = series && series.find(g => g.type === (p.s.type === 'Tournament' ? 'Tournament' : 'Cash'));
+    const py = Y(own ? p.runs[own.type] : p.run);
+    if (own) xd.setAttribute('fill', own.color);
     xh.setAttribute('x1', px); xh.setAttribute('x2', px); xh.setAttribute('visibility', 'visible');
     xd.setAttribute('cx', px); xd.setAttribute('cy', py); xd.setAttribute('visibility', 'visible');
-    tipAt(el, px * r.width / W, py * r.height / H, `${fmtDate(p.s.date)} · ${esc(p.s.venue)}<br>Session <b>${money(p.net, true)}</b> · Total <b>${money(p.run, true)}</b>`);
+    tipAt(el, px * r.width / W, py * r.height / H, `${fmtDate(p.s.date)} · ${esc(p.s.venue)}${own ? ` · ${own.label}` : ''}<br>Session <b>${money(p.net, true)}</b> · ${series ? series.map(g => `${g.label} <b>${money(p.runs[g.type], true)}</b>`).join(' · ') : `Total <b>${money(p.run, true)}</b>`}`);
   };
   const leave = () => { xh.setAttribute('visibility', 'hidden'); xd.setAttribute('visibility', 'hidden'); hideTip(el); };
   hit.addEventListener('pointermove', move); hit.addEventListener('pointerdown', move); hit.addEventListener('pointerleave', leave);
@@ -1049,10 +1073,16 @@ function countV(n, cx, bw, top, h, zero, up) {
 }
 function barsV(el, items, tipFn) {
   const W = Math.max(el.clientWidth, 260), H = 190, L = 46, R = 8, T = 18, B = 24;
-  const ticks = niceTicks(Math.min(0, ...items.map(x => x.net)), Math.max(0, ...items.map(x => x.net)), 4);
+  // it.parts (Excl): side-by-side bars per slot, coloured by game type instead of win/loss.
+  const vals = items.flatMap(x => (x.parts ? x.parts.map(q => q.net) : [x.net]));
+  const ticks = niceTicks(Math.min(0, ...vals), Math.max(0, ...vals), 4);
   const y0 = ticks[0], y1 = ticks[ticks.length - 1];
   const Y = v => T + (H - T - B) * (1 - (v - y0) / (y1 - y0));
   const slot = (W - L - R) / items.length, bw = Math.min(44, slot * 0.6);
+  const partBars = (it, cx) => it.parts.map((q, k) => {
+    const pw = bw / it.parts.length, x = cx - bw / 2 + k * pw, top = Math.min(Y(0), Y(q.net)), h = q.n ? Math.max(1.5, Math.abs(Y(q.net) - Y(0))) : 0;
+    return h ? `<rect x="${x + 0.5}" y="${top}" width="${pw - 1}" height="${h}" rx="2" fill="${q.color}"/>${countV(q.n, x + pw / 2, pw, top, h, Y(0), q.net >= 0)}` : '';
+  }).join('');
   // With many bars, label every few so the axis stays readable.
   const every = Math.max(1, Math.ceil(items.length / Math.max(1, Math.floor((W - L - R) / 48))));
   el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Net profit bars">
@@ -1062,9 +1092,9 @@ function barsV(el, items, tipFn) {
       const ly = it.net >= 0 ? top - 5 : top + h + 12;
       return `<g data-i="${i}" class="bar">
         <rect x="${cx - slot / 2}" y="${T}" width="${slot}" height="${H - T - B}" fill="transparent"/>
-        <rect x="${cx - bw / 2}" y="${top}" width="${bw}" height="${h}" rx="3" fill="${it.net >= 0 ? 'var(--win)' : 'var(--loss)'}"/>
-        ${countV(it.n, cx, bw, top, h, Y(0), it.net >= 0)}
-        ${items.length <= 8 ? `<text x="${cx}" y="${ly}" text-anchor="middle" style="fill:var(--ink);font-family:var(--font-num);font-size:10.5px">${short(it.net)}</text>` : ''}
+        ${it.parts ? partBars(it, cx) : `<rect x="${cx - bw / 2}" y="${top}" width="${bw}" height="${h}" rx="3" fill="${it.net >= 0 ? 'var(--win)' : 'var(--loss)'}"/>
+        ${countV(it.n, cx, bw, top, h, Y(0), it.net >= 0)}`}
+        ${items.length <= 8 && !it.parts ? `<text x="${cx}" y="${ly}" text-anchor="middle" style="fill:var(--ink);font-family:var(--font-num);font-size:10.5px">${short(it.net)}</text>` : ''}
         ${i % every === 0 ? `<text x="${cx}" y="${H - 6}" text-anchor="middle">${esc(it.axis ?? it.label)}</text>` : ''}
       </g>`;
     }).join('')}
