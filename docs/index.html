@@ -1376,7 +1376,7 @@ function listView() {
 // One line per session for the Results lists: rank (top 10 only), date, venue, stakes and hours, net. No notes.
 function miniRowHTML(s, rank) {
   const c = calc(s), [y, m, d] = s.date.split('-');
-  const sub = [s.type === 'Tournament' ? 'MTT' : s.stakes, s.hours ? hrs(s.hours) + 'h' : ''].filter(Boolean).join(' · ');
+  const sub = [s.type === 'Tournament' ? 'Tourney' : s.stakes, s.hours ? hrs(s.hours) + 'h' : ''].filter(Boolean).join(' · ');
   return `<button class="mrow" data-id="${s.id}">${rank ? `<span class="rk">${rank}.</span>` : ''}
     <span class="dt">${MONTHS[+m - 1]} ${+d} ’${y.slice(2)}</span>
     <span class="vn">${esc(s.venue || 'Unknown venue')}${sub ? ` <small>${esc(sub)}</small>` : ''}</span>
@@ -1386,7 +1386,7 @@ function rowHTML(s) {
   const c = calc(s), [, m, d] = s.date.split('-');
   return `<button class="row" data-id="${s.id}">
     <span class="d"><b>${+d}</b><small>${MONTHS[+m - 1]}</small></span>
-    <span class="mid"><div>${esc(s.venue || 'Unknown venue')}${s.type === 'Tournament' ? '<span class="chip">MTT</span>' : ''}</div>
+    <span class="mid"><div>${esc(s.venue || 'Unknown venue')}${s.type === 'Tournament' ? '<span class="chip">Tourney</span>' : ''}</div>
       <div>${esc([s.stakes && s.type === 'Cash' ? s.stakes : '', s.hours ? hrs(s.hours) + 'h' : '', s.notes].filter(Boolean).join(' · ') || ' ')}</div></span>
     <span class="amt"><b class="${cls(c.net)}">${money(c.net, true)}</b><small>${c.hourly != null ? money(c.hourly, true) + '/h' : ''}</small></span>
   </button>`;
